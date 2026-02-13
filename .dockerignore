@@ -1,0 +1,49 @@
+# ── Dependencies ───────────────────────────────────────
+node_modules/
+
+# ── Build output ──────────────────────────────────────
+dist/
+build/
+*.js.map
+*.d.ts
+!vitest.config.ts
+
+# ── Environment / Secrets ─────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Test / Coverage ───────────────────────────────────
+coverage/
+
+# ── Claude Code local-only files ──────────────────────
+# Claude Code auto-gitignores these, but explicit is safer.
+# Project-level CLAUDE.md and .claude/settings.json ARE committed.
+# Local overrides and personal memory files are NOT committed.
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/*.local.*
+
+# ── OS generated files ────────────────────────────────
+.DS_Store
+.DS_Store?
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+._*
+
+# ── Editor / IDE ──────────────────────────────────────
+# VS Code: we DO commit .vscode/ (settings, tasks, launch, extensions).
+# But user-specific workspace storage is excluded.
+*.code-workspace
+.history/
+
+# ── Logs ──────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Misc ──────────────────────────────────────────────
+*.tgz
+*.tsbuildinfo
