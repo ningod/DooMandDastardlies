@@ -1,0 +1,167 @@
+import {
+  Client,
+  GatewayIntentBits,
+  Events,
+  InteractionType,
+  MessageFlags,
+} from "discord.js";
+import dotenv from "dotenv";
+import { handleRollCommand, rollCommandData } from "./commands/roll.js";
+import { handleButton } from "./interactions/buttons.js";
+import { RollStore } from "./lib/store.js";
+import { RateLimiter } from "./lib/ratelimit.js";
+import { logger } from "./lib/logger.js";
+
+// Load environment variables from .env
+dotenv.config();
+
+const token = process.env.DISCORD_BOT_TOKEN;
+if (!token) {
+  logger.error("missing-token", {
+    message: "DISCORD_BOT_TOKEN environment variable is not set.",
+  });
+  process.exit(1);
+}
+
+// Create the Discord client (no privileged intents needed for slash commands)
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds],
+});
+
+// Initialize shared services
+const store = new RollStore();
+const limiter = new RateLimiter(5, 10_000); // 5 rolls per 10 seconds
+
+// Bot ready
+client.once(Events.ClientReady, (readyClient) => {
+  logger.info("ready", {
+    user: readyClient.user.tag,
+    guilds: readyClient.guilds.cache.size,
+  });
+  store.start();
+});
+
+// Interaction handler
+client.on(Events.InteractionCreate, async (interaction) => {
+  // Track if defer succeeded
+  let deferFailed = false;
+
+  try {
+    // CRITICAL: Defer roll commands IMMEDIATELY before any logging
+    if (interaction.isChatInputCommand() && interaction.commandName === rollCommandData.name) {
+      const secret = interaction.options.getBoolean("secret") ?? true;
+      await interaction.deferReply({
+        flags: secret ? MessageFlags.Ephemeral : undefined,
+      });
+    }
+
+    // Button interactions need immediate defer too
+    if (interaction.isButton() && interaction.customId.startsWith('reveal:')) {
+      await interaction.deferUpdate();
+    }
+  } catch (err) {
+    // Check if this is a network timeout issue (Discord auto-acknowledged)
+    const isTimeout =
+      err instanceof Error &&
+      (err.message.includes("Unknown interaction") ||
+        err.message.includes("Interaction has already been acknowledged"));
+
+    if (isTimeout) {
+      logger.warn("defer-timeout", {
+        interactionId: interaction.id,
+        message: "Discord may have auto-acknowledged",
+      });
+      deferFailed = true;
+      // Continue processing - might still work
+    } else {
+      logger.error("defer-failed", {
+        interactionId: interaction.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
+  }
+
+  try {
+    // Dispatch to handlers (defer already done above)
+    if (interaction.isChatInputCommand()) {
+      logger.info("interaction-received", {
+        type: "slash-command",
+        command: interaction.commandName,
+        interactionId: interaction.id,
+        userId: interaction.user.id,
+        userTag: interaction.user.tag,
+        channelId: interaction.channelId,
+      });
+      if (interaction.commandName === rollCommandData.name) {
+        await handleRollCommand(interaction, store, limiter);
+      }
+      return;
+    }
+
+    // Button interactions
+    if (interaction.isButton()) {
+      logger.info("interaction-received", {
+        type: "button",
+        customId: interaction.customId,
+        interactionId: interaction.id,
+        userId: interaction.user.id,
+        userTag: interaction.user.tag,
+        channelId: interaction.channelId,
+      });
+      await handleButton(interaction, store);
+      return;
+    }
+  } catch (err) {
+    // Ignore stale interaction errors - these happen when users click old commands/buttons after bot restart
+    const isStaleInteraction =
+      err instanceof Error &&
+      (err.message.includes("Unknown interaction") ||
+        err.message.includes("Interaction has already been acknowledged"));
+
+    if (isStaleInteraction) {
+      logger.info("stale-interaction-ignored", {
+        type: InteractionType[interaction.type],
+        interactionId: interaction.id,
+        userId: interaction.user.id,
+      });
+      return; // Silently ignore stale interactions
+    }
+
+    // Log all other errors
+    logger.error("interaction-error", {
+      type: InteractionType[interaction.type],
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      interactionId: interaction.id,
+      userId: interaction.user.id,
+      channelId: interaction.channelId,
+    });
+
+    // Try to respond with an error if we haven't already
+    try {
+      if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          content: "An unexpected error occurred. Please try again.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+    } catch {
+      // If we can't respond, just log — don't crash
+    }
+  }
+});
+
+// Graceful shutdown
+function shutdown() {
+  logger.info("shutdown");
+  store.stop();
+  client.destroy();
+  process.exit(0);
+}
+
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+
+// Login
+client.login(token);
