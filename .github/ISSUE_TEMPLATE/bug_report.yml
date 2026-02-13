@@ -1,0 +1,106 @@
+name: Bug Report
+description: Report a bug or issue with the bot
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the form below.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: The bot doesn't respond when I...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Run command '/roll dice:2d6'
+        2. Click 'Reveal to Channel'
+        3. See error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen
+      placeholder: The roll should be revealed publicly in the channel
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened
+      placeholder: Error message appears / nothing happens / bot crashes
+    validations:
+      required: true
+
+  - type: input
+    id: nodejs-version
+    attributes:
+      label: Node.js Version
+      description: Run `node --version` and paste the output
+      placeholder: v22.12.0
+    validations:
+      required: true
+
+  - type: input
+    id: discordjs-version
+    attributes:
+      label: Discord.js Version
+      description: Check package.json or run `npm list discord.js`
+      placeholder: 14.25.1
+    validations:
+      required: false
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      description: What OS are you running the bot on?
+      placeholder: Ubuntu 24.04 / Windows 11 / macOS 15
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs
+      description: |
+        Please copy and paste any relevant log output.
+        **WARNING: Never include bot tokens or secrets!**
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context about the problem
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing issues to avoid duplicates
+          required: true
+        - label: I have removed any bot tokens or secrets from my report
+          required: true
+        - label: I am using a supported Node.js version (18+)
+          required: true
