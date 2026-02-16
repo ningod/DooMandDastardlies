@@ -17,7 +17,7 @@ const LABEL_PATTERN = /^[\w\s-]+$/u;
 
 /**
  * A single parsed die group, e.g. "2d8" -> { count: 2, sides: 8 }.
- * Optionally labeled, e.g. "(Verve) 2d20" -> { count: 2, sides: 20, label: "Attack" }.
+ * Optionally labeled, e.g. "(Verve) 2d20" -> { count: 2, sides: 20, label: "Verve" }.
  */
 export interface DieGroup {
   count: number;
@@ -44,7 +44,7 @@ export interface RollResult {
  * Accepted formats (with optional labels):
  *   "d4"                        -> [{ count: 1, sides: 4 }]
  *   "2d4+1d8"                   -> [{ count: 2, sides: 4 }, { count: 1, sides: 8 }]
- *   "(Verve) 2d20"             -> [{ count: 2, sides: 20, label: "Attack" }]
+ *   "(Verve) 2d20"             -> [{ count: 2, sides: 20, label: "Verve" }]
  *   "(Verve) 2d20 + (Dmg) 1d8" -> two labeled groups
  *   "(Roll1) d6, (Roll2) d4"   -> comma-separated labeled groups
  *

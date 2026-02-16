@@ -123,13 +123,13 @@ describe('parseDice', () => {
 describe('parseDice (labeled)', () => {
   it('parses a single labeled group', () => {
     const result = parseDice('(Verve) 2d20');
-    expect(result).toEqual([{ count: 2, sides: 20, label: 'Attack' }]);
+    expect(result).toEqual([{ count: 2, sides: 20, label: 'Verve' }]);
   });
 
   it('parses multiple labeled groups with plus separator', () => {
     const result = parseDice('(Verve) 2d20 + (Damage) 1d8');
     expect(result).toEqual([
-      { count: 2, sides: 20, label: 'Attack' },
+      { count: 2, sides: 20, label: 'Verve' },
       { count: 1, sides: 8, label: 'Damage' },
     ]);
   });
@@ -146,7 +146,7 @@ describe('parseDice (labeled)', () => {
   it('parses mixed labeled and unlabeled groups', () => {
     const result = parseDice('(Verve) 2d20 + 1d6');
     expect(result).toEqual([
-      { count: 2, sides: 20, label: 'Attack' },
+      { count: 2, sides: 20, label: 'Verve' },
       { count: 1, sides: 6 },
     ]);
   });
@@ -159,7 +159,7 @@ describe('parseDice (labeled)', () => {
   it('parses space-separated labeled groups', () => {
     const result = parseDice('(Soul) d4 (Bonus) d6');
     expect(result).toEqual([
-      { count: 1, sides: 4, label: 'Heal' },
+      { count: 1, sides: 4, label: 'Soul' },
       { count: 1, sides: 6, label: 'Bonus' },
     ]);
   });
@@ -176,13 +176,13 @@ describe('parseDice (labeled)', () => {
   });
 
   it('rejects labels with unsafe characters', () => {
-    expect(() => parseDice('(Attack!) d6')).toThrow(DiceParseError);
-    expect(() => parseDice('(Attack!) d6')).toThrow(/invalid characters/);
+    expect(() => parseDice('(Verve!) d6')).toThrow(DiceParseError);
+    expect(() => parseDice('(Verve!) d6')).toThrow(/invalid characters/);
   });
 
   it('handles uppercase in labels', () => {
     const result = parseDice('(Verve) 2D20');
-    expect(result).toEqual([{ count: 2, sides: 20, label: 'ATTACK' }]);
+    expect(result).toEqual([{ count: 2, sides: 20, label: 'Verve' }]);
   });
 });
 
@@ -205,7 +205,7 @@ describe('canonicalize', () => {
 
   it('includes labels in canonical output', () => {
     const groups: DieGroup[] = [
-      { count: 2, sides: 20, label: 'Attack' },
+      { count: 2, sides: 20, label: 'Verve' },
       { count: 1, sides: 8, label: 'Damage' },
     ];
     expect(canonicalize(groups)).toBe('(Verve) 2d20 + (Damage) 1d8');
@@ -213,7 +213,7 @@ describe('canonicalize', () => {
 
   it('mixes labeled and unlabeled groups', () => {
     const groups: DieGroup[] = [
-      { count: 2, sides: 20, label: 'Attack' },
+      { count: 2, sides: 20, label: 'Verve' },
       { count: 1, sides: 6 },
     ];
     expect(canonicalize(groups)).toBe('(Verve) 2d20 + 1d6');
@@ -269,9 +269,9 @@ describe('rollDice', () => {
   });
 
   it('preserves labels in results', () => {
-    const groups: DieGroup[] = [{ count: 1, sides: 6, label: 'Attack' }];
+    const groups: DieGroup[] = [{ count: 1, sides: 6, label: 'Verve' }];
     const result = rollDice(groups);
-    expect(result.groups[0].group.label).toBe('Attack');
+    expect(result.groups[0].group.label).toBe('Verve');
     expect(result.expression).toBe('(Verve) 1d6');
   });
 

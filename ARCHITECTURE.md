@@ -67,7 +67,7 @@ User types: /secret dice:(Verve) 2d20 + (Damage) 1d8 comment:Fire Bolt
 3. roll.ts → ratelimit.ts: consume(userId)
    └─ If rejected → reply with ephemeral rate-limit error
 4. roll.ts → dice.ts: parseDice("(Verve) 2d20 + (Damage) 1d8")
-   └─ Returns: [{ count: 2, sides: 20, label: "Attack" }, { count: 1, sides: 8, label: "Damage" }]
+   └─ Returns: [{ count: 2, sides: 20, label: "Verve" }, { count: 1, sides: 8, label: "Damage" }]
    └─ If parse error → reply with ephemeral parse error
 5. roll.ts → dice.ts: rollDice(groups)
    └─ Uses crypto.randomInt() for each die
