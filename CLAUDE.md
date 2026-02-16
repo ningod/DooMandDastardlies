@@ -2,15 +2,18 @@
 
 ## Project Purpose
 
-Discord dice roller bot for the **DooM & Dastardlies** TTRPG. The signature mechanic is **"rolling behind the screen"**: dice results are secret by default (ephemeral to the roller) and can be revealed publicly via a button click.
+Discord dice roller bot for the **DooM & Dastardlies** TTRPG. The signature mechanic is **"rolling behind the screen"**: dice results can be rolled secretly (ephemeral to the roller) and revealed publicly via a button click.
 
 ## Critical UX Constraints
 
-- **Secret rolls are the default.** The `secret` option defaults to `true`.
-- **Ephemeral → Reveal flow:** The initial reply is ephemeral (only the roller sees it). A "Reveal to Channel" button sends a **new public message** to the channel. The ephemeral message is then updated with a disabled "Revealed" button.
+- **Two roll modes.** `/roll` (and `/r`) default to public. `/secret` (and `/s`) default to secret. Both accept a `secret` option to override.
+- **Secret roll two-message flow:** A public announcement message (no results) with a "Reveal Result" button, plus an ephemeral message showing results only to the roller.
+- **Reveal edits the public message.** Clicking "Reveal Result" edits the original announcement to show results — no third message is created.
 - **No re-rolling on reveal.** The exact rolled values are preserved in the TTL store and posted as-is.
 - **Only the roller can reveal.** Button handler must verify `userId` and `channelId` match.
 - **10-minute TTL.** Unrevealed rolls expire; clicking reveal after expiry shows a friendly error.
+- **Labeled rolls.** Optional `(Label) NdS` syntax groups results by label with subtotals.
+- **Comments replace reasons.** An optional `comment` string (max 120 chars) is shown in embeds. The old `reason` parameter no longer exists.
 
 ## Commands
 
@@ -29,17 +32,19 @@ npm run deploy-commands  # Register slash commands with Discord
 ```
 src/
   index.ts                 — Bot entry point, client setup, graceful shutdown
-  deploy-commands.ts       — One-shot script to register /roll with Discord API
-  commands/roll.ts         — /roll slash command handler
-  interactions/buttons.ts  — "Reveal to Channel" button handler
+  deploy-commands.ts       — One-shot script to register all commands with Discord API
+  commands/
+    roll.ts                — /roll, /r, /secret, /s command definitions + shared handler
+    help.ts                — /help command definition + handler
+  interactions/buttons.ts  — "Reveal Result" button handler
   lib/
-    dice.ts                — Dice expression parser + crypto-secure roller
+    dice.ts                — Dice expression parser (with labels) + crypto-secure roller
     store.ts               — In-memory TTL store for pending secret rolls
     ratelimit.ts           — Per-user sliding-window rate limiter
     embeds.ts              — Discord embed builders (roll result, errors)
     logger.ts              — Structured JSON logger (metadata only, never secrets)
 tests/
-  dice.test.ts             — Parser + roller unit tests
+  dice.test.ts             — Parser + roller unit tests (including labels)
   store.test.ts            — TTL store tests
   ratelimit.test.ts        — Rate limiter tests
 ```

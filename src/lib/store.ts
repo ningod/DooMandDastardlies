@@ -6,7 +6,7 @@ export interface StoredRoll {
   userId: string;
   channelId: string;
   result: RollResult;
-  reason: string | null;
+  comment: string | null;
   rolledAt: Date;
   publicMessageId: string;
   rollerTag: string;

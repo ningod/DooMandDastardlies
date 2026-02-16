@@ -1,27 +1,40 @@
 import { EmbedBuilder, Colors } from "discord.js";
-import { RollResult } from "./dice.js";
+import { RollResult, DieGroupResult } from "./dice.js";
 
 const TITLE = "DooM & Dastardlies — Dice Roll";
+
+/** Maximum comment length allowed in embeds. */
+export const MAX_COMMENT_LENGTH = 120;
+
+/**
+ * Format a single die group result for display.
+ * Shows label (if present), dice notation, individual values, and subtotal.
+ */
+function formatGroupResult(gr: DieGroupResult): string {
+  const dice = `${gr.group.count}d${gr.group.sides}`;
+  const values = gr.rolls.map((r) => `**${r}**`).join(", ");
+  const subtotal = gr.rolls.reduce((a, b) => a + b, 0);
+  const prefix = gr.group.label ? `**${gr.group.label}** — ` : "";
+  return `${prefix}${dice}: [${values}] = ${subtotal}`;
+}
 
 /**
  * Build a rich embed displaying roll results.
  *
- * @param opts - Configuration for the embed
  * @param opts.result - The roll result with dice values and total
- * @param opts.reason - Optional reason for the roll
+ * @param opts.comment - Optional comment for the roll
  * @param opts.rollerTag - Discord tag of the user who rolled
  * @param opts.rollerId - Discord ID of the user who rolled
  * @param opts.isRevealed - Whether this is a revealed roll (affects color and footer)
- * @returns Discord embed with roll information
  */
 export function buildRollEmbed(opts: {
   result: RollResult;
-  reason: string | null;
+  comment: string | null;
   rollerTag: string;
   rollerId: string;
   isRevealed?: boolean;
 }): EmbedBuilder {
-  const { result, reason, rollerTag, rollerId, isRevealed } = opts;
+  const { result, comment, rollerId, isRevealed } = opts;
 
   const embed = new EmbedBuilder()
     .setTitle(TITLE)
@@ -30,28 +43,22 @@ export function buildRollEmbed(opts: {
 
   // Dice expression
   embed.addFields({ name: "Dice", value: `\`${result.expression}\``, inline: true });
+  embed.addFields({ name: "Roller", value: `<@${rollerId}>`, inline: true });
 
-  // Individual results per group
-  const resultsLines = result.groups.map((gr) => {
-    const label = `${gr.group.count}d${gr.group.sides}`;
-    const values = gr.rolls.map((r) => `**${r}**`).join(", ");
-    return `${label}: [${values}]`;
-  });
+  // Comment (optional)
+  if (comment) {
+    embed.addFields({ name: "Comment", value: comment });
+  }
+
+  // Individual results per group (with labels and subtotals)
+  const resultsLines = result.groups.map(formatGroupResult);
   embed.addFields({ name: "Results", value: resultsLines.join("\n") });
 
   // Total
   embed.addFields({ name: "Total", value: `**${result.total}**`, inline: true });
 
-  // Reason (optional)
-  if (reason) {
-    embed.addFields({ name: "Reason", value: reason, inline: true });
-  }
-
-  // Roller
-  embed.addFields({ name: "Roller", value: `<@${rollerId}>`, inline: true });
-
   if (isRevealed) {
-    embed.setFooter({ text: `Revealed by ${rollerTag}` });
+    embed.setFooter({ text: `Revealed` });
   } else {
     embed.setFooter({ text: "Secret roll — only you can see this" });
   }
@@ -63,18 +70,16 @@ export function buildRollEmbed(opts: {
  * Build a public announcement embed for a secret roll (no results shown).
  * This is the message everyone sees before the roll is revealed.
  *
- * @param opts - Configuration for the announcement
  * @param opts.expression - The dice expression (e.g., "2d6")
- * @param opts.reason - Optional reason for the roll
+ * @param opts.comment - Optional comment for the roll
  * @param opts.rollerId - Discord ID of the user who rolled
- * @returns Discord embed announcing a secret roll
  */
 export function buildSecretRollAnnouncementEmbed(opts: {
   expression: string;
-  reason: string | null;
+  comment: string | null;
   rollerId: string;
 }): EmbedBuilder {
-  const { expression, reason, rollerId } = opts;
+  const { expression, comment, rollerId } = opts;
 
   const embed = new EmbedBuilder()
     .setTitle("Secret Roll")
@@ -84,8 +89,8 @@ export function buildSecretRollAnnouncementEmbed(opts: {
   embed.addFields({ name: "Dice", value: `\`${expression}\``, inline: true });
   embed.addFields({ name: "Roller", value: `<@${rollerId}>`, inline: true });
 
-  if (reason) {
-    embed.addFields({ name: "Reason", value: reason, inline: true });
+  if (comment) {
+    embed.addFields({ name: "Comment", value: comment });
   }
 
   embed.setDescription("🎲 Result is hidden until revealed.");
@@ -97,24 +102,22 @@ export function buildSecretRollAnnouncementEmbed(opts: {
  * Build a reveal embed showing the roll results and who revealed them.
  * This replaces the secret announcement when the roller clicks "Reveal Result".
  *
- * @param opts - Configuration for the reveal
  * @param opts.result - The roll result with dice values and total
- * @param opts.reason - Optional reason for the roll
+ * @param opts.comment - Optional comment for the roll
  * @param opts.rollerTag - Discord tag of the original roller
  * @param opts.rollerId - Discord ID of the original roller
- * @param opts.revealerTag - Discord tag of who clicked reveal (usually same as roller)
+ * @param opts.revealerTag - Discord tag of who clicked reveal
  * @param opts.revealerId - Discord ID of who clicked reveal
- * @returns Discord embed with revealed roll results and attribution
  */
 export function buildRevealEmbed(opts: {
   result: RollResult;
-  reason: string | null;
+  comment: string | null;
   rollerTag: string;
   rollerId: string;
   revealerTag: string;
   revealerId: string;
 }): EmbedBuilder {
-  const { result, reason, rollerTag, rollerId, revealerTag, revealerId } = opts;
+  const { result, comment, rollerId, revealerTag } = opts;
 
   const embed = new EmbedBuilder()
     .setTitle(TITLE)
@@ -123,25 +126,19 @@ export function buildRevealEmbed(opts: {
 
   // Dice expression
   embed.addFields({ name: "Dice", value: `\`${result.expression}\``, inline: true });
+  embed.addFields({ name: "Roller", value: `<@${rollerId}>`, inline: true });
 
-  // Individual results per group
-  const resultsLines = result.groups.map((gr) => {
-    const label = `${gr.group.count}d${gr.group.sides}`;
-    const values = gr.rolls.map((r) => `**${r}**`).join(", ");
-    return `${label}: [${values}]`;
-  });
+  // Comment (optional)
+  if (comment) {
+    embed.addFields({ name: "Comment", value: comment });
+  }
+
+  // Individual results per group (with labels and subtotals)
+  const resultsLines = result.groups.map(formatGroupResult);
   embed.addFields({ name: "Results", value: resultsLines.join("\n") });
 
   // Total
   embed.addFields({ name: "Total", value: `**${result.total}**`, inline: true });
-
-  // Reason (optional)
-  if (reason) {
-    embed.addFields({ name: "Reason", value: reason, inline: true });
-  }
-
-  // Roller
-  embed.addFields({ name: "Roller", value: `<@${rollerId}>`, inline: true });
 
   // Revealer
   embed.setFooter({ text: `Revealed by ${revealerTag}` });
@@ -153,7 +150,6 @@ export function buildRevealEmbed(opts: {
  * Build an error embed for displaying user-friendly error messages.
  *
  * @param message - The error message to display
- * @returns Discord embed with error styling
  */
 export function buildErrorEmbed(message: string): EmbedBuilder {
   return new EmbedBuilder()

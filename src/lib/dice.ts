@@ -1,4 +1,4 @@
-import { randomInt } from "node:crypto";
+import { randomInt } from 'node:crypto';
 
 /** Allowed polyhedral die sizes. */
 const VALID_SIDES = new Set([4, 6, 8, 10, 12, 20]);
@@ -7,12 +7,22 @@ const VALID_SIDES = new Set([4, 6, 8, 10, 12, 20]);
 const MAX_TOTAL_DICE = 50;
 
 /** Maximum input string length. */
-const MAX_EXPRESSION_LENGTH = 100;
+const MAX_EXPRESSION_LENGTH = 200;
 
-/** A single parsed die group, e.g. "2d8" → { count: 2, sides: 8 }. */
+/** Maximum label length. */
+const MAX_LABEL_LENGTH = 32;
+
+/** Allowed characters in labels: letters, digits, spaces, underscores, hyphens. */
+const LABEL_PATTERN = /^[\w\s-]+$/u;
+
+/**
+ * A single parsed die group, e.g. "2d8" -> { count: 2, sides: 8 }.
+ * Optionally labeled, e.g. "(Verve) 2d20" -> { count: 2, sides: 20, label: "Attack" }.
+ */
 export interface DieGroup {
   count: number;
   sides: number;
+  label?: string;
 }
 
 /** Result for one die group after rolling. */
@@ -23,7 +33,7 @@ export interface DieGroupResult {
 
 /** Full roll result. */
 export interface RollResult {
-  expression: string; // canonical form, e.g. "2d4 + 1d8"
+  expression: string; // canonical form, e.g. "(Verve) 2d20 + (Damage) 1d8"
   groups: DieGroupResult[];
   total: number;
 }
@@ -31,60 +41,99 @@ export interface RollResult {
 /**
  * Parse a dice expression string into an array of DieGroup.
  *
- * Accepted formats:
- *   "d4"        → [{ count: 1, sides: 4 }]
- *   "2d4+1d8"   → [{ count: 2, sides: 4 }, { count: 1, sides: 8 }]
- *   "2d4, 1d8"  → same
- *   "2d4 1d8"   → same
+ * Accepted formats (with optional labels):
+ *   "d4"                        -> [{ count: 1, sides: 4 }]
+ *   "2d4+1d8"                   -> [{ count: 2, sides: 4 }, { count: 1, sides: 8 }]
+ *   "(Verve) 2d20"             -> [{ count: 2, sides: 20, label: "Attack" }]
+ *   "(Verve) 2d20 + (Dmg) 1d8" -> two labeled groups
+ *   "(Roll1) d6, (Roll2) d4"   -> comma-separated labeled groups
  *
- * @throws Error with a user-friendly message on invalid input.
+ * @throws DiceParseError with a user-friendly message on invalid input.
  */
 export function parseDice(input: string): DieGroup[] {
   if (input.length > MAX_EXPRESSION_LENGTH) {
+    throw new DiceParseError(`Expression is too long (max ${MAX_EXPRESSION_LENGTH} characters).`);
+  }
+
+  const trimmed = input.trim();
+
+  if (trimmed.length === 0) {
     throw new DiceParseError(
-      `Expression is too long (max ${MAX_EXPRESSION_LENGTH} characters).`
+      'Empty dice expression. Example: `2d6` or `(Verve) 2d20 + (Damage) 1d8`.'
     );
   }
 
-  // Normalize: trim, lowercase
-  const normalized = input.trim().toLowerCase();
+  // Tokenize: extract sequential (label)? dice pairs.
+  // Strategy: split on separators (+, comma) while preserving label-dice grouping.
+  // We use a regex that captures optional (label) followed by dice notation.
+  const groupPattern = /(?:\(([^)]*)\)\s*)?(\d*d\d+)/gi;
+  const matches = [...trimmed.matchAll(groupPattern)];
 
-  if (normalized.length === 0) {
+  if (matches.length === 0) {
     throw new DiceParseError(
-      "Empty dice expression. Example: `2d6` or `1d4+1d8`."
+      'Could not parse any dice from the expression. Example: `2d6` or `(Verve) 2d20 + (Damage) 1d8`.'
     );
   }
 
-  // Split on separators: +, comma, or whitespace (one or more)
-  const tokens = normalized
-    .split(/[+,\s]+/)
-    .filter((t) => t.length > 0);
-
-  if (tokens.length === 0) {
+  // Verify the entire input is covered by valid tokens and separators.
+  // Build what we expect the input to look like from matches, then compare.
+  const validStructure =
+    /^[\s,+]*(?:\([^)]*\)\s*)?(?:\d*d\d+)(?:[\s,+]+(?:\([^)]*\)\s*)?(?:\d*d\d+))*[\s,+]*$/i;
+  if (!validStructure.test(trimmed)) {
+    // Find the first problematic token for a helpful error message
+    const cleaned = trimmed.replace(/\([^)]*\)/g, ''); // remove labels
+    const tokens = cleaned.split(/[+,\s]+/).filter((t) => t.length > 0);
+    const badToken = tokens.find((t) => !/^\d*d\d+$/i.test(t));
+    if (badToken) {
+      throw new DiceParseError(
+        `Invalid token "${badToken}". Expected format like \`d6\` or \`2d8\`. ` +
+          `Supported dice: d4, d6, d8, d10, d12, d20.`
+      );
+    }
     throw new DiceParseError(
-      "Could not parse any dice from the expression. Example: `2d6` or `1d4+1d8`."
+      'Could not parse the dice expression. Example: `2d6` or `(Verve) 2d20 + (Damage) 1d8`.'
     );
   }
 
   const groups: DieGroup[] = [];
   let totalDice = 0;
 
-  for (const token of tokens) {
-    const match = token.match(/^(\d*)d(\d+)$/);
-    if (!match) {
+  for (const match of matches) {
+    const rawLabel = match[1]; // may be undefined
+    const diceStr = match[2].toLowerCase();
+
+    // Validate label if present
+    let label: string | undefined;
+    if (rawLabel !== undefined) {
+      const labelTrimmed = rawLabel.trim();
+      if (labelTrimmed.length > 0) {
+        if (labelTrimmed.length > MAX_LABEL_LENGTH) {
+          throw new DiceParseError(
+            `Label "${labelTrimmed}" is too long (max ${MAX_LABEL_LENGTH} characters).`
+          );
+        }
+        if (!LABEL_PATTERN.test(labelTrimmed)) {
+          throw new DiceParseError(
+            `Label "${labelTrimmed}" contains invalid characters. Use letters, numbers, spaces, underscores, or hyphens.`
+          );
+        }
+        label = labelTrimmed;
+      }
+    }
+
+    // Parse dice notation
+    const diceMatch = diceStr.match(/^(\d*)d(\d+)$/);
+    if (!diceMatch) {
       throw new DiceParseError(
-        `Invalid token "${token}". Expected format like \`d6\` or \`2d8\`. ` +
-          `Supported dice: d4, d6, d8, d10, d12, d20.`
+        `Invalid dice "${diceStr}". Expected format like \`d6\` or \`2d8\`.`
       );
     }
 
-    const count = match[1] === "" ? 1 : parseInt(match[1], 10);
-    const sides = parseInt(match[2], 10);
+    const count = diceMatch[1] === '' ? 1 : parseInt(diceMatch[1], 10);
+    const sides = parseInt(diceMatch[2], 10);
 
     if (count < 1) {
-      throw new DiceParseError(
-        `Dice count must be at least 1 (got "${token}").`
-      );
+      throw new DiceParseError(`Dice count must be at least 1 (got "${diceStr}").`);
     }
 
     if (!VALID_SIDES.has(sides)) {
@@ -100,7 +149,11 @@ export function parseDice(input: string): DieGroup[] {
       );
     }
 
-    groups.push({ count, sides });
+    const group: DieGroup = { count, sides };
+    if (label) {
+      group.label = label;
+    }
+    groups.push(group);
   }
 
   return groups;
@@ -110,12 +163,15 @@ export function parseDice(input: string): DieGroup[] {
  * Build a canonical string representation of parsed groups.
  *
  * @param groups - Array of parsed die groups
- * @returns Canonical string like "2d4 + 1d8"
- * @example
- * canonicalize([{count:2, sides:4}, {count:1, sides:8}]) // → "2d4 + 1d8"
+ * @returns Canonical string like "(Verve) 2d20 + (Damage) 1d8"
  */
 export function canonicalize(groups: DieGroup[]): string {
-  return groups.map((g) => `${g.count}d${g.sides}`).join(" + ");
+  return groups
+    .map((g) => {
+      const dice = `${g.count}d${g.sides}`;
+      return g.label ? `(${g.label}) ${dice}` : dice;
+    })
+    .join(' + ');
 }
 
 /**
@@ -123,8 +179,6 @@ export function canonicalize(groups: DieGroup[]): string {
  *
  * @param groups - Array of die groups to roll
  * @returns Complete roll result with expression, individual rolls, and total
- * @example
- * rollDice([{count: 2, sides: 6}]) // Rolls 2d6, returns results + total
  */
 export function rollDice(groups: DieGroup[]): RollResult {
   const results: DieGroupResult[] = [];
@@ -133,7 +187,7 @@ export function rollDice(groups: DieGroup[]): RollResult {
   for (const group of groups) {
     const rolls: number[] = [];
     for (let i = 0; i < group.count; i++) {
-      // randomInt(min, max) → [min, max)  so we use (1, sides+1)
+      // randomInt(min, max) -> [min, max)  so we use (1, sides+1)
       const value = randomInt(1, group.sides + 1);
       rolls.push(value);
       total += value;
@@ -152,6 +206,6 @@ export function rollDice(groups: DieGroup[]): RollResult {
 export class DiceParseError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "DiceParseError";
+    this.name = 'DiceParseError';
   }
 }

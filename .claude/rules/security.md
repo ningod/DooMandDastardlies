@@ -12,7 +12,7 @@ These rules are auto-loaded by Claude Code at the start of every session.
 
 ## Input Validation
 
-- Reject dice expressions longer than 100 characters
+- Reject dice expressions longer than 200 characters
 - Cap total dice count at 50
 - Only allow polyhedral dice: d4, d6, d8, d10, d12, d20
 - Reject malformed tokens with user-friendly error messages including examples

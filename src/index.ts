@@ -6,7 +6,8 @@ import {
   MessageFlags,
 } from "discord.js";
 import dotenv from "dotenv";
-import { handleRollCommand, rollCommandData } from "./commands/roll.js";
+import { handleRollCommand, ROLL_COMMAND_NAMES } from "./commands/roll.js";
+import { handleHelpCommand } from "./commands/help.js";
 import { handleButton } from "./interactions/buttons.js";
 import { RollStore } from "./lib/store.js";
 import { RateLimiter } from "./lib/ratelimit.js";
@@ -47,20 +48,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
   let deferFailed = false;
 
   try {
-    // CRITICAL: Defer roll commands IMMEDIATELY before any logging
-    if (interaction.isChatInputCommand() && interaction.commandName === rollCommandData.name) {
-      const secret = interaction.options.getBoolean("secret") ?? true;
+    // CRITICAL: Defer roll commands IMMEDIATELY before any processing.
+    // /help does NOT need deferring (it replies directly).
+    if (interaction.isChatInputCommand() && ROLL_COMMAND_NAMES.has(interaction.commandName)) {
+      const secretDefault = ["secret", "s"].includes(interaction.commandName);
+      const secret = interaction.options.getBoolean("secret") ?? secretDefault;
       await interaction.deferReply({
         flags: secret ? MessageFlags.Ephemeral : undefined,
       });
     }
 
     // Button interactions need immediate defer too
-    if (interaction.isButton() && interaction.customId.startsWith('reveal:')) {
+    if (interaction.isButton() && interaction.customId.startsWith("reveal:")) {
       await interaction.deferUpdate();
     }
   } catch (err) {
-    // Check if this is a network timeout issue (Discord auto-acknowledged)
     const isTimeout =
       err instanceof Error &&
       (err.message.includes("Unknown interaction") ||
@@ -72,7 +74,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         message: "Discord may have auto-acknowledged",
       });
       deferFailed = true;
-      // Continue processing - might still work
     } else {
       logger.error("defer-failed", {
         interactionId: interaction.id,
@@ -83,7 +84,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 
   try {
-    // Dispatch to handlers (defer already done above)
+    // Dispatch slash commands
     if (interaction.isChatInputCommand()) {
       logger.info("interaction-received", {
         type: "slash-command",
@@ -93,8 +94,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
         userTag: interaction.user.tag,
         channelId: interaction.channelId,
       });
-      if (interaction.commandName === rollCommandData.name) {
+
+      if (ROLL_COMMAND_NAMES.has(interaction.commandName)) {
         await handleRollCommand(interaction, store, limiter);
+      } else if (interaction.commandName === "help") {
+        await handleHelpCommand(interaction);
       }
       return;
     }
@@ -113,7 +117,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
   } catch (err) {
-    // Ignore stale interaction errors - these happen when users click old commands/buttons after bot restart
+    // Ignore stale interaction errors
     const isStaleInteraction =
       err instanceof Error &&
       (err.message.includes("Unknown interaction") ||
@@ -125,10 +129,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
         interactionId: interaction.id,
         userId: interaction.user.id,
       });
-      return; // Silently ignore stale interactions
+      return;
     }
 
-    // Log all other errors
     logger.error("interaction-error", {
       type: InteractionType[interaction.type],
       error: err instanceof Error ? err.message : String(err),

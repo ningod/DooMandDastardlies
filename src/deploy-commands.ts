@@ -1,6 +1,12 @@
 import { REST, Routes } from "discord.js";
 import dotenv from "dotenv";
-import { rollCommandData } from "./commands/roll.js";
+import {
+  rollCommandData,
+  rCommandData,
+  secretCommandData,
+  sCommandData,
+} from "./commands/roll.js";
+import { helpCommandData } from "./commands/help.js";
 
 dotenv.config();
 
@@ -15,7 +21,13 @@ if (!token || !clientId) {
   process.exit(1);
 }
 
-const commands = [rollCommandData.toJSON()];
+const commands = [
+  rollCommandData.toJSON(),
+  rCommandData.toJSON(),
+  secretCommandData.toJSON(),
+  sCommandData.toJSON(),
+  helpCommandData.toJSON(),
+];
 
 const rest = new REST({ version: "10" }).setToken(token);
 

@@ -152,11 +152,12 @@ src/
   index.ts                 # Bot entry point, client setup
   deploy-commands.ts       # Command registration script
   commands/
-    roll.ts                # /roll command handler
+    roll.ts                # /roll, /r, /secret, /s — shared handler
+    help.ts                # /help command
   interactions/
     buttons.ts             # Reveal button handler
   lib/
-    dice.ts                # Dice parser & roller (crypto RNG)
+    dice.ts                # Dice parser (with labels) & roller (crypto RNG)
     store.ts               # TTL store for secret rolls
     ratelimit.ts           # Per-user rate limiter
     embeds.ts              # Discord embed builders

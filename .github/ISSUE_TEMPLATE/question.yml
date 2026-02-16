@@ -1,15 +1,15 @@
 name: Question
 description: Ask a question about using or deploying the bot
-title: "[Question]: "
-labels: ["question"]
+title: '[Question]: '
+labels: ['question']
 body:
   - type: markdown
     attributes:
       value: |
         Have a question? Please check the documentation first:
-        - [README.md](https://github.com/yourusername/DooMandDastardlies/blob/main/README.md)
-        - [SUPPORT.md](https://github.com/yourusername/DooMandDastardlies/blob/main/SUPPORT.md)
-        - [CONTRIBUTING.md](https://github.com/yourusername/DooMandDastardlies/blob/main/CONTRIBUTING.md)
+        - [README.md](https://github.com/ningod/DooMandDastardlies/blob/main/README.md)
+        - [SUPPORT.md](https://github.com/ningod/DooMandDastardlies/blob/main/SUPPORT.md)
+        - [CONTRIBUTING.md](https://github.com/ningod/DooMandDastardlies/blob/main/CONTRIBUTING.md)
 
   - type: textarea
     id: question

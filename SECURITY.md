@@ -33,11 +33,15 @@ All user input passes through strict validation before processing:
 
 | Constraint | Limit | Enforced In |
 |---|---|---|
-| Expression length | Max 100 characters | `dice.ts` → `parseDice()` |
+| Expression length | Max 200 characters | `dice.ts` → `parseDice()` |
 | Total dice count | Max 50 | `dice.ts` → `parseDice()` |
 | Allowed die types | d4, d6, d8, d10, d12, d20 | `dice.ts` → `VALID_SIDES` |
 | Dice count per group | Min 1 | `dice.ts` → `parseDice()` |
 | Token format | Must match `/^\d*d\d+$/` | `dice.ts` → `parseDice()` |
+| Label length | Max 32 characters | `dice.ts` → `parseDice()` |
+| Label characters | Letters, digits, spaces, underscores, hyphens | `dice.ts` → `LABEL_PATTERN` |
+| Comment length | Max 120 characters | `embeds.ts` → `MAX_COMMENT_LENGTH` |
+| Comment sanitization | @mentions replaced with safe text | `roll.ts` → `sanitizeComment()` |
 
 Invalid input produces a user-friendly error embed with usage examples. No stack traces or internal details are exposed.
 

@@ -16,7 +16,7 @@ function makeRoll(overrides?: Partial<StoredRoll>): StoredRoll {
       ],
       total: 8,
     },
-    reason: null,
+    comment: null,
     rolledAt: new Date(),
     publicMessageId: "msg-789",
     rollerTag: "TestUser#1234",

@@ -4,48 +4,131 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-} from "discord.js";
-import { v4 as uuidv4 } from "uuid";
-import { parseDice, rollDice, DiceParseError } from "../lib/dice.js";
-import { RollStore } from "../lib/store.js";
-import { RateLimiter } from "../lib/ratelimit.js";
-import { buildRollEmbed, buildErrorEmbed, buildSecretRollAnnouncementEmbed } from "../lib/embeds.js";
-import { logger } from "../lib/logger.js";
+} from 'discord.js';
+import { v4 as uuidv4 } from 'uuid';
+import { parseDice, rollDice, DiceParseError } from '../lib/dice.js';
+import { RollStore } from '../lib/store.js';
+import { RateLimiter } from '../lib/ratelimit.js';
+import {
+  buildRollEmbed,
+  buildErrorEmbed,
+  buildSecretRollAnnouncementEmbed,
+  MAX_COMMENT_LENGTH,
+} from '../lib/embeds.js';
+import { logger } from '../lib/logger.js';
 
-/** Build the /roll slash command definition. */
-export const rollCommandData = new SlashCommandBuilder()
-  .setName("roll")
-  .setDescription("Roll dice behind the screen (DooM & Dastardlies)")
-  .addStringOption((opt) =>
+// ---------------------------------------------------------------------------
+// Shared option builders
+// ---------------------------------------------------------------------------
+
+function addDiceOption(builder: SlashCommandBuilder): SlashCommandBuilder {
+  return builder.addStringOption((opt) =>
     opt
-      .setName("dice")
-      .setDescription('Dice expression, e.g. "2d6", "1d4+1d8", "d20"')
+      .setName('dice')
+      .setDescription('Dice expression, e.g. "2d6", "(Verve) 2d20 + (Damage) 1d8"')
       .setRequired(true)
-  )
-  .addStringOption((opt) =>
+  ) as SlashCommandBuilder;
+}
+
+function addCommentOption(builder: SlashCommandBuilder): SlashCommandBuilder {
+  return builder.addStringOption((opt) =>
     opt
-      .setName("reason")
-      .setDescription('Optional reason for the roll, e.g. "attack"')
+      .setName('comment')
+      .setDescription('Optional comment, e.g. "Greatsword swing"')
       .setRequired(false)
-  )
-  .addBooleanOption((opt) =>
-    opt
-      .setName("secret")
-      .setDescription("Roll secretly? Default: true (only you see the result)")
-      .setRequired(false)
-  );
+  ) as SlashCommandBuilder;
+}
+
+function addSecretOption(builder: SlashCommandBuilder, description: string): SlashCommandBuilder {
+  return builder.addBooleanOption((opt) =>
+    opt.setName('secret').setDescription(description).setRequired(false)
+  ) as SlashCommandBuilder;
+}
+
+// ---------------------------------------------------------------------------
+// Command definitions
+// ---------------------------------------------------------------------------
+
+/** /roll — public by default */
+export const rollCommandData = addSecretOption(
+  addCommentOption(
+    addDiceOption(
+      new SlashCommandBuilder().setName('roll').setDescription('Roll dice (public by default)')
+    )
+  ),
+  'Roll secretly? Default: false'
+);
+
+/** /r — alias for /roll */
+export const rCommandData = addSecretOption(
+  addCommentOption(
+    addDiceOption(
+      new SlashCommandBuilder().setName('r').setDescription('Roll dice (shortcut for /roll)')
+    )
+  ),
+  'Roll secretly? Default: false'
+);
+
+/** /secret — secret by default */
+export const secretCommandData = addSecretOption(
+  addCommentOption(
+    addDiceOption(
+      new SlashCommandBuilder()
+        .setName('secret')
+        .setDescription('Roll dice secretly (only you see the result)')
+    )
+  ),
+  'Roll publicly instead? Default: true (secret)'
+);
+
+/** /s — alias for /secret */
+export const sCommandData = addSecretOption(
+  addCommentOption(
+    addDiceOption(
+      new SlashCommandBuilder()
+        .setName('s')
+        .setDescription('Roll dice secretly (shortcut for /secret)')
+    )
+  ),
+  'Roll publicly instead? Default: true (secret)'
+);
+
+/** All roll-type command names. */
+export const ROLL_COMMAND_NAMES = new Set(['roll', 'r', 'secret', 's']);
+
+/** Commands where secret defaults to true. */
+const SECRET_DEFAULT_COMMANDS = new Set(['secret', 's']);
+
+// ---------------------------------------------------------------------------
+// Mention suppression for comments
+// ---------------------------------------------------------------------------
+
+/** Strip @everyone, @here, and <@...> mention patterns from user input. */
+function sanitizeComment(raw: string): string {
+  return raw
+    .replace(/@everyone/gi, '@\u200Beveryone')
+    .replace(/@here/gi, '@\u200Bhere')
+    .replace(/<@[!&]?\d+>/g, '[mention]')
+    .replace(/<#\d+>/g, '[channel]')
+    .replace(/<@&\d+>/g, '[role]');
+}
+
+// ---------------------------------------------------------------------------
+// Shared handler
+// ---------------------------------------------------------------------------
 
 /**
- * Handle the /roll interaction.
+ * Handle /roll, /r, /secret, /s interactions.
  */
 export async function handleRollCommand(
   interaction: ChatInputCommandInteraction,
   store: RollStore,
   limiter: RateLimiter
 ): Promise<void> {
-  // Defer is already done in index.ts - we can safely process
   const userId = interaction.user.id;
-  const secret = interaction.options.getBoolean("secret") ?? true;
+  const commandName = interaction.commandName;
+  const secretDefault = SECRET_DEFAULT_COMMANDS.has(commandName);
+  const secret = interaction.options.getBoolean('secret') ?? secretDefault;
 
   // Rate limit check
   if (!limiter.consume(userId)) {
@@ -60,13 +143,28 @@ export async function handleRollCommand(
     return;
   }
 
-  const diceInput = interaction.options.getString("dice", true);
-  const reason = interaction.options.getString("reason") ?? null;
+  const diceInput = interaction.options.getString('dice', true);
+  const rawComment = interaction.options.getString('comment') ?? null;
 
-  logger.info("roll-parsing", {
+  // Validate and sanitize comment
+  let comment: string | null = null;
+  if (rawComment) {
+    if (rawComment.length > MAX_COMMENT_LENGTH) {
+      await interaction.editReply({
+        embeds: [
+          buildErrorEmbed(
+            `Comment is too long (max ${MAX_COMMENT_LENGTH} characters). You used ${rawComment.length}.`
+          ),
+        ],
+      });
+      return;
+    }
+    comment = sanitizeComment(rawComment);
+  }
+
+  logger.info('roll-parsing', {
     userId,
     diceInput,
-    reason,
     secret,
     channelId: interaction.channelId,
   });
@@ -77,9 +175,7 @@ export async function handleRollCommand(
     groups = parseDice(diceInput);
   } catch (err) {
     const message =
-      err instanceof DiceParseError
-        ? err.message
-        : "Failed to parse dice expression.";
+      err instanceof DiceParseError ? err.message : 'Failed to parse dice expression.';
     await interaction.editReply({
       embeds: [buildErrorEmbed(message)],
     });
@@ -89,11 +185,9 @@ export async function handleRollCommand(
   // Roll the dice
   const result = rollDice(groups);
 
-  // Log metadata only (not the roll values for secret rolls)
-  logger.info("roll-complete", {
+  logger.info('roll-complete', {
     userId,
     expression: result.expression,
-    total: result.total,
     secret,
     channelId: interaction.channelId,
   });
@@ -102,7 +196,7 @@ export async function handleRollCommand(
     // Public roll — reply publicly
     const embed = buildRollEmbed({
       result,
-      reason,
+      comment,
       rollerTag: interaction.user.tag,
       rollerId: userId,
       isRevealed: true,
@@ -119,22 +213,22 @@ export async function handleRollCommand(
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`reveal:${rollId}`)
-      .setLabel("Reveal Result")
+      .setLabel('Reveal Result')
       .setStyle(ButtonStyle.Primary)
-      .setEmoji("🎲")
+      .setEmoji('🎲')
   );
 
   // Step 1: Send PUBLIC announcement to channel (no results shown)
   const announcementEmbed = buildSecretRollAnnouncementEmbed({
     expression: result.expression,
-    reason,
+    comment,
     rollerId: userId,
   });
 
   const channel = interaction.channel;
   if (!channel || !('send' in channel)) {
     await interaction.editReply({
-      embeds: [buildErrorEmbed("Unable to send messages in this channel.")],
+      embeds: [buildErrorEmbed('Unable to send messages in this channel.')],
     });
     return;
   }
@@ -147,7 +241,7 @@ export async function handleRollCommand(
   // Step 2: Send EPHEMERAL result to the roller
   const resultEmbed = buildRollEmbed({
     result,
-    reason,
+    comment,
     rollerTag: interaction.user.tag,
     rollerId: userId,
     isRevealed: false,
@@ -163,14 +257,13 @@ export async function handleRollCommand(
     userId,
     channelId: interaction.channelId,
     result,
-    reason,
+    comment,
     rolledAt: new Date(),
     publicMessageId: publicMessage.id,
     rollerTag: interaction.user.tag,
   });
 
-  // Debug: confirm storage
-  logger.info("roll-stored", {
+  logger.info('roll-stored', {
     rollId,
     userId,
     channelId: interaction.channelId,

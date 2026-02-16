@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
 - Initial public release preparation
 - GitHub Actions CI/CD pipeline
 - Community health files (CODE_OF_CONDUCT, CONTRIBUTING, SECURITY)
@@ -23,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-02-12
 
 ### Added
+
 - `/roll` slash command for dice rolling
 - Secret rolls by default (ephemeral to roller)
 - "Reveal to Channel" button for publishing secret rolls
@@ -38,11 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Full TypeScript strict mode support
 
 ### Security
+
 - Input validation (max 100 char expressions, max 50 dice)
 - No secrets in logs policy
 - Rate limiting to prevent abuse
 - Authorization checks on button interactions
 - Crypto-secure random number generation
 
-[unreleased]: https://github.com/yourusername/DooMandDastardlies/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/yourusername/DooMandDastardlies/releases/tag/v1.0.0
+[unreleased]: https://github.com/ningod/DooMandDastardlies/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/ningod/DooMandDastardlies/releases/tag/v1.0.0

@@ -1,7 +1,7 @@
 # DooM & Dastardlies — Dice Roller Bot
 
-[![CI](https://github.com/yourusername/DooMandDastardlies/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/DooMandDastardlies/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/yourusername/DooMandDastardlies/actions/workflows/codeql.yml/badge.svg)](https://github.com/yourusername/DooMandDastardlies/actions/workflows/codeql.yml)
+[![CI](https://github.com/ningod/DooMandDastardlies/actions/workflows/ci.yml/badge.svg)](https://github.com/ningod/DooMandDastardlies/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/ningod/DooMandDastardlies/actions/workflows/codeql.yml/badge.svg)](https://github.com/ningod/DooMandDastardlies/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org/)
 
@@ -14,6 +14,7 @@ A Discord bot for the **DooM & Dastardlies** TTRPG. Its signature feature is **s
 **[DooM & Dastardlies](https://stefanovetrini.itch.io/doom-and-dastardlies)** is a fantasy tabletop RPG about power, trust, and bold deception where players roll the dice behind the screen. Created by **[Stefano Vetrini](https://stefanovetrini.itch.io)**, this game puts a unique twist on traditional TTRPGs: players secretly roll their own dice, and the Game Master must decide whether to believe them.
 
 **Game Details:**
+
 - 🎲 **Players:** 3–6
 - ⏱️ **Play Time:** 3–4 hours per session
 - 📖 **Status:** Currently in playtest
@@ -39,14 +40,16 @@ This Discord bot brings the "roll behind the screen" mechanic to online play, ma
 
 ## Features
 
-- **Secret rolls by default** — results are ephemeral (only the roller sees them)
-- **Reveal button** — post the result publicly when you're ready
+- **Multiple commands** — `/roll` (public default), `/secret` (secret default), plus `/r` and `/s` shortcuts
+- **Secret rolls** — results are ephemeral (only the roller sees them) with a "Reveal Result" button
+- **Labeled rolls** — `(VIG) 2d20 + (Damage) 1d8` groups results by label with subtotals
+- **Roll with comment** — add an optional comment to any roll (max 120 characters)
 - **Composite dice pools** — `2d4+1d8`, `2d4, 1d8`, `2d4 1d8` all work
 - **Polyhedral dice** — d4, d6, d8, d10, d12, d20
-- **Public roll option** — use `secret:false` to roll openly
 - **Rate limiting** — 5 rolls per 10 seconds per user
 - **Crypto-grade RNG** — uses Node.js `crypto.randomInt`
 - **10-minute TTL** — unrevealed rolls expire automatically
+- **Built-in help** — `/help` shows full syntax reference
 
 ## Prerequisites
 
@@ -91,6 +94,7 @@ DISCORD_GUILD_ID=your-test-guild-id    # optional, for dev
 ```
 
 **Where to find these values:**
+
 - **Bot Token**: Discord Developer Portal → Your App → Bot → Reset Token
 - **Client ID**: Discord Developer Portal → Your App → General Information → Application ID
 - **Guild ID**: Right-click your Discord server → Copy Server ID (enable Developer Mode in Discord settings)
@@ -109,27 +113,32 @@ npm run deploy-commands
 Use this URL pattern (replace `YOUR_CLIENT_ID`):
 
 ```
-https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=2048&scope=bot%20applications.commands
+https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=18432&scope=bot%20applications.commands
 ```
 
 Required permissions:
-- `Send Messages` (2048)
+
+- `Send Messages`
+- `Embed Links`
 - `applications.commands` scope
 
 ### 6. Run the bot
 
 **Development** (with ts-node):
+
 ```bash
 npm run dev
 ```
 
 **Production** (compiled):
+
 ```bash
 npm run build
 npm start
 ```
 
 **From VS Code tasks** (`Ctrl+Shift+P` → "Tasks: Run Task"):
+
 - **Install** — `npm install`
 - **Build** — `npm run build` (default build task, also `Ctrl+Shift+B`)
 - **Dev** — `npm run dev` (runs in a dedicated terminal)
@@ -138,6 +147,7 @@ npm start
 - **Deploy Commands** — `npm run deploy-commands`
 
 **Debugging** (`F5` in VS Code):
+
 - **Debug Bot** — runs `src/index.ts` with ts-node and the VS Code debugger attached
 - **Debug Deploy Commands** — runs `src/deploy-commands.ts` with debugger
 - **Debug Current Test File** — runs the currently open test file with Vitest
@@ -153,16 +163,31 @@ npm start
 /roll dice:2d4, 1d8
 ```
 
-### With a reason
+### Labeled rolls
 
 ```
-/roll dice:2d6 reason:attack
+/roll dice:(Finesse) 2d20
+/secret dice:(Arcane Magic) 1d20
 ```
 
-### Public roll (not secret)
+### With a comment
 
 ```
-/roll dice:d20 secret:false
+/roll dice:3d20 comment:Soul check
+```
+
+### Secret roll (two ways)
+
+```
+/secret dice:d20            # secret by default
+/roll dice:d20 secret:true  # explicit override
+```
+
+### Shortcuts
+
+```
+/r dice:2d6      # alias for /roll (public default)
+/s dice:d20      # alias for /secret (secret default)
 ```
 
 ### Revealing a secret roll
@@ -183,17 +208,18 @@ src/
   index.ts                 # Bot entry point
   deploy-commands.ts       # Slash command registration script
   commands/
-    roll.ts                # /roll command handler
+    roll.ts                # /roll, /r, /secret, /s — shared handler
+    help.ts                # /help command
   interactions/
     buttons.ts             # Reveal button handler
   lib/
-    dice.ts                # Dice expression parser & roller
+    dice.ts                # Dice expression parser (with labels) & roller
     store.ts               # In-memory TTL store for secret rolls
     ratelimit.ts           # Per-user rate limiter
     embeds.ts              # Discord embed builders
     logger.ts              # Structured JSON logger
 tests/
-  dice.test.ts             # Dice parser & roller tests
+  dice.test.ts             # Dice parser & roller tests (including labels)
   store.test.ts            # TTL store tests
   ratelimit.test.ts        # Rate limiter tests
 .claude/
@@ -272,12 +298,6 @@ Need help? Check out [SUPPORT.md](./SUPPORT.md) for resources:
 - Common issues and solutions
 - Where to get help
 
-## Topics
-
-When publishing this repository, consider adding these GitHub topics:
-
-`discord-bot` `dice-roller` `ttrpg` `discord-js` `typescript` `secret-rolls` `rpg` `tabletop-gaming` `dungeons-and-dragons` `bot`
-
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
@@ -304,22 +324,22 @@ This repo is configured for [Claude Code](https://docs.anthropic.com/en/docs/cla
 
 ### What is committed (shared with the team)
 
-| File | Purpose |
-|---|---|
-| `CLAUDE.md` | Project context, coding standards, agentic rules — loaded every session |
-| `AGENTS.md` | Protocols for AI-assisted development (change, security, interaction) |
-| `.claude/settings.json` | Project-wide Claude Code settings (permission deny rules for `.env`, `dist/`, `node_modules/`) |
-| `.claude/rules/security.md` | Security rules auto-loaded at session start |
-| `.claude/rules/code-style.md` | Code style rules auto-loaded at session start |
+| File                          | Purpose                                                                                        |
+| ----------------------------- | ---------------------------------------------------------------------------------------------- |
+| `CLAUDE.md`                   | Project context, coding standards, agentic rules — loaded every session                        |
+| `AGENTS.md`                   | Protocols for AI-assisted development (change, security, interaction)                          |
+| `.claude/settings.json`       | Project-wide Claude Code settings (permission deny rules for `.env`, `dist/`, `node_modules/`) |
+| `.claude/rules/security.md`   | Security rules auto-loaded at session start                                                    |
+| `.claude/rules/code-style.md` | Code style rules auto-loaded at session start                                                  |
 
 ### What is NOT committed (local-only)
 
-| File | Purpose |
-|---|---|
-| `CLAUDE.local.md` | Personal project-specific instructions (auto-gitignored by Claude Code) |
-| `.claude/settings.local.json` | Personal project overrides (auto-gitignored) |
-| `~/.claude/CLAUDE.md` | Your global personal Claude Code memory (home directory) |
-| `~/.claude/settings.json` | Your global personal settings (home directory) |
+| File                          | Purpose                                                                 |
+| ----------------------------- | ----------------------------------------------------------------------- |
+| `CLAUDE.local.md`             | Personal project-specific instructions (auto-gitignored by Claude Code) |
+| `.claude/settings.local.json` | Personal project overrides (auto-gitignored)                            |
+| `~/.claude/CLAUDE.md`         | Your global personal Claude Code memory (home directory)                |
+| `~/.claude/settings.json`     | Your global personal settings (home directory)                          |
 
 ### Usage tips
 
@@ -330,51 +350,179 @@ This repo is configured for [Claude Code](https://docs.anthropic.com/en/docs/cla
 
 ## Deployment
 
-### Systemd (Linux)
+This bot is deployed on [Fly.io](https://fly.io). The repository includes a production-ready `Dockerfile` and `fly.toml`.
 
-Create `/etc/systemd/system/doom-dice-bot.service`:
+### Prerequisites
 
-```ini
-[Unit]
-Description=DooM & Dastardlies Dice Bot
-After=network.target
+- A [Fly.io account](https://fly.io/docs/getting-started/sign-up/)
+- The `flyctl` CLI installed — see [Install flyctl](https://fly.io/docs/flyctl/install/)
+- Authenticated via `fly auth login`
+- Your Discord bot token and client ID (see [Setup](#setup))
 
-[Service]
-Type=simple
-WorkingDirectory=/path/to/DooMandDastardlies
-ExecStart=/usr/bin/node dist/index.js
-Restart=on-failure
-EnvironmentFile=/path/to/DooMandDastardlies/.env
+### Configuration overview
 
-[Install]
-WantedBy=multi-user.target
-```
+| File | Purpose |
+|---|---|
+| `Dockerfile` | Multi-stage build: installs deps, compiles TypeScript, prunes dev deps, runs `node dist/index.js` |
+| `.dockerignore` | Excludes `node_modules/`, `dist/`, `.env`, test/coverage files from the Docker context |
+| `fly.toml` | Fly.io app configuration — app name, region, VM size, process settings |
 
-```bash
-sudo systemctl enable doom-dice-bot
-sudo systemctl start doom-dice-bot
-```
+The `Dockerfile` uses a Node.js 22 slim base image with a two-stage build to keep the final image small. Only production dependencies and the compiled `dist/` output are included in the deployed image.
 
-### Docker
+### 1. Create the Fly.io app (first time only)
 
-```dockerfile
-FROM node:22-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --omit=dev
-COPY dist/ ./dist/
-CMD ["node", "dist/index.js"]
-```
+If you are setting up the app for the first time:
 
 ```bash
-npm run build
-docker build -t doom-dice-bot .
-docker run -d --env-file .env doom-dice-bot
+fly launch --no-deploy
 ```
 
-### Cloud (Railway, Render, Fly.io)
+This generates a `fly.toml` if one doesn't exist. Since this repo already includes a `fly.toml`, you can skip this step and go straight to setting secrets.
 
-Set the environment variables in the platform's dashboard and deploy. Use `npm run build && npm start` as the start command.
+If you need to adopt the existing config under your Fly.io account:
+
+```bash
+fly apps create doomanddastardlies --org personal
+```
+
+### 2. Set secrets
+
+Secrets are encrypted and injected as environment variables at runtime. **Never** commit them to the repository.
+
+```bash
+fly secrets set DISCORD_BOT_TOKEN=your-bot-token-here
+fly secrets set DISCORD_CLIENT_ID=your-client-id-here
+```
+
+To verify which secrets are set (values are not shown):
+
+```bash
+fly secrets list
+```
+
+To update a secret, run `fly secrets set` again with the new value. The machine restarts automatically when secrets change.
+
+### 3. Deploy
+
+```bash
+fly deploy
+```
+
+This builds the Docker image remotely on Fly.io's builders, pushes it to the internal registry, and creates/updates the machine. On first deploy, Fly provisions the machine in the configured region.
+
+To watch the build output and verify success:
+
+```bash
+fly deploy --verbose
+```
+
+### 4. Register slash commands
+
+After the first deploy (or whenever commands change), register the slash commands with Discord. Run this **locally** — it only needs to happen once per command schema change:
+
+```bash
+npm run deploy-commands
+```
+
+Without `DISCORD_GUILD_ID`, commands register globally (can take up to 1 hour to propagate). With `DISCORD_GUILD_ID` set in your local `.env`, they register instantly for that server.
+
+### 5. Verify the deployment
+
+Check that the machine is running:
+
+```bash
+fly status
+```
+
+View recent logs to confirm the bot connected to Discord:
+
+```bash
+fly logs
+```
+
+You should see a `ready` log entry with the bot's tag and guild count.
+
+### fly.toml reference
+
+```toml
+app = 'doomanddastardlies'
+primary_region = 'iad'
+
+[build]
+# Uses the Dockerfile in the repo root
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 1024
+```
+
+| Setting | Purpose |
+|---|---|
+| `primary_region` | `iad` (Ashburn, Virginia). Choose a region close to your users — see `fly platform regions` |
+| `min_machines_running = 1` | Keeps the bot online at all times. A Discord bot must maintain a persistent WebSocket connection |
+| `auto_stop_machines = 'stop'` | Fly stops idle machines, but `min_machines_running = 1` ensures at least one stays active |
+| `memory_mb = 1024` | 1 GB RAM — sufficient for the bot and its in-memory TTL store |
+| `cpu_kind = 'shared'` | Shared CPU is adequate for a low-traffic Discord bot |
+
+### Monitoring and logs
+
+View live logs:
+
+```bash
+fly logs --app doomanddastardlies
+```
+
+The bot uses structured JSON logging (see [src/lib/logger.ts](src/lib/logger.ts)). Log entries include metadata like user ID, channel ID, command name, and success/failure — but **never** actual roll results.
+
+Check machine status and resource usage:
+
+```bash
+fly status
+fly machine list
+```
+
+### Redeploying
+
+After pushing code changes, redeploy with:
+
+```bash
+fly deploy
+```
+
+Fly.io performs a rolling update — the new machine starts before the old one is stopped, minimizing downtime.
+
+### Scaling
+
+The bot runs on a single machine by default. To change the VM size or region:
+
+```bash
+# Change VM size
+fly scale vm shared-cpu-1x --memory 512
+
+# Add a machine in a different region
+fly scale count 1 --region lhr
+```
+
+For most Discord bots serving a small-to-medium number of servers, a single `shared-cpu-1x` machine with 256–1024 MB of RAM is sufficient.
+
+### Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Bot not responding to commands | Secrets not set or wrong | `fly secrets list`, re-set if needed |
+| "Unknown interaction" errors | Slash commands not registered | Run `npm run deploy-commands` locally |
+| Machine keeps restarting | Crash in bot startup (bad token, etc.) | `fly logs` to see the error |
+| Bot goes offline periodically | `min_machines_running` set to 0 | Ensure `min_machines_running = 1` in `fly.toml` |
 
 ## Required Discord Intents
 
@@ -386,20 +534,20 @@ No privileged intents (Message Content, Presence, Guild Members) are required.
 
 ### For Users and Contributors
 
-| Document | Description |
-|---|---|
-| [README.md](./README.md) | You are here! Setup, usage, and overview |
-| [CONTRIBUTING.md](./CONTRIBUTING.md) | How to contribute (required reading for contributors) |
-| [SECURITY.md](./SECURITY.md) | Security policies and vulnerability reporting |
-| [SUPPORT.md](./SUPPORT.md) | How to get help |
-| [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) | Community standards and expectations |
-| [CHANGELOG.md](./CHANGELOG.md) | Version history and release notes |
-| [LICENSE](./LICENSE) | MIT License text |
+| Document                                   | Description                                           |
+| ------------------------------------------ | ----------------------------------------------------- |
+| [README.md](./README.md)                   | You are here! Setup, usage, and overview              |
+| [CONTRIBUTING.md](./CONTRIBUTING.md)       | How to contribute (required reading for contributors) |
+| [SECURITY.md](./SECURITY.md)               | Security policies and vulnerability reporting         |
+| [SUPPORT.md](./SUPPORT.md)                 | How to get help                                       |
+| [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) | Community standards and expectations                  |
+| [CHANGELOG.md](./CHANGELOG.md)             | Version history and release notes                     |
+| [LICENSE](./LICENSE)                       | MIT License text                                      |
 
 ### For Developers and Maintainers
 
-| Document | Description |
-|---|---|
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | Component diagram, data flows, storage model |
-| [AGENTS.md](./AGENTS.md) | Agentic development protocols for AI-assisted changes |
-| [CLAUDE.md](./CLAUDE.md) | Project context and rules for Claude Code sessions |
+| Document                             | Description                                           |
+| ------------------------------------ | ----------------------------------------------------- |
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | Component diagram, data flows, storage model          |
+| [AGENTS.md](./AGENTS.md)             | Agentic development protocols for AI-assisted changes |
+| [CLAUDE.md](./CLAUDE.md)             | Project context and rules for Claude Code sessions    |

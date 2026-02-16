@@ -1,8 +1,5 @@
 import {
   ButtonInteraction,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   MessageFlags,
 } from 'discord.js';
 import { RollStore } from '../lib/store.js';
@@ -106,7 +103,7 @@ export async function handleButton(interaction: ButtonInteraction, store: RollSt
   // Build the reveal embed with revealer info
   const revealEmbed = buildRevealEmbed({
     result: stored.result,
-    reason: stored.reason,
+    comment: stored.comment,
     rollerTag: stored.rollerTag,
     rollerId: stored.userId,
     revealerTag: interaction.user.tag,
@@ -173,7 +170,7 @@ export async function handleButton(interaction: ButtonInteraction, store: RollSt
   // Update the ephemeral message with confirmation
   const ephemeralEmbed = buildRollEmbed({
     result: stored.result,
-    reason: stored.reason,
+    comment: stored.comment,
     rollerTag: stored.rollerTag,
     rollerId: stored.userId,
     isRevealed: true,
