@@ -3,13 +3,19 @@
   "permissions": {
     "deny": [
       "Read(./.env)",
-      "Read(./.env.*)",
       "Write(./.env)",
-      "Write(./.env.*)",
+      "Read(./.env.local)",
+      "Write(./.env.local)",
+      "Read(./.env.production)",
+      "Write(./.env.production)",
+      "Read(./.env.development)",
+      "Write(./.env.development)",
       "Read(./dist/**)",
       "Write(./dist/**)",
       "Read(./node_modules/**)",
-      "Write(./node_modules/**)"
-    ]
+      "Write(./node_modules/**)",
+      "Bash(.env)"
+    ],
+    "allow": ["Read(./.env.example)", "Write(./.env.example)"]
   }
 }

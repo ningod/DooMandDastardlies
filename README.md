@@ -49,6 +49,7 @@ This Discord bot brings the "roll behind the screen" mechanic to online play, ma
 - **Rate limiting** — 5 rolls per 10 seconds per user
 - **Crypto-grade RNG** — uses Node.js `crypto.randomInt`
 - **10-minute TTL** — unrevealed rolls expire automatically
+- **Event timers** — `/timer start` creates recurring reminders, auto-stop after configurable max duration
 - **Built-in help** — `/help` shows full syntax reference
 
 ## Prerequisites
@@ -91,6 +92,7 @@ Edit `.env`:
 DISCORD_BOT_TOKEN=your-bot-token-here
 DISCORD_CLIENT_ID=your-client-id-here
 DISCORD_GUILD_ID=your-test-guild-id    # optional, for dev
+MAX_TIMER_HOURS=2                      # optional, max timer runtime (1-24, default 2)
 ```
 
 **Where to find these values:**
@@ -201,6 +203,22 @@ When you make a secret roll:
 
 Rolls expire after 10 minutes. If you don't reveal in time, you'll need to roll again.
 
+### Event timers
+
+Timers post recurring messages in the channel at set intervals — useful for tracking torches, rest periods, wandering monster checks, etc.
+
+```
+/timer start interval:5 name:"Combat Round"           # Triggers every 5 minutes, indefinitely
+/timer start interval:30 name:"Torch" repeat:4        # Triggers 4 times, then stops
+/timer stop timer_id:1                                 # Stop a specific timer
+/timer stop all:true                                   # Stop all timers in this channel
+/timer list                                            # Show active timers (ephemeral)
+```
+
+Each trigger message includes a **Stop** button. When a timer completes (or reaches the maximum duration), a **Restart** button appears.
+
+**Maximum duration:** Timers auto-stop after a configurable limit (default: 2 hours). Set the `MAX_TIMER_HOURS` environment variable to change this (1–24).
+
 ## Project Structure
 
 ```
@@ -210,17 +228,22 @@ src/
   commands/
     roll.ts                # /roll, /r, /secret, /s — shared handler
     help.ts                # /help command
+    timer.ts               # /timer start, stop, list — event timer system
   interactions/
     buttons.ts             # Reveal button handler
+    timer-buttons.ts       # Timer Stop and Restart button handlers
   lib/
     dice.ts                # Dice expression parser (with labels) & roller
     store.ts               # In-memory TTL store for secret rolls
+    timer-store.ts         # In-memory store for active event timers
     ratelimit.ts           # Per-user rate limiter
     embeds.ts              # Discord embed builders
+    timer-embeds.ts        # Timer-specific embed builders
     logger.ts              # Structured JSON logger
 tests/
   dice.test.ts             # Dice parser & roller tests (including labels)
   store.test.ts            # TTL store tests
+  timer-store.test.ts      # Timer store tests
   ratelimit.test.ts        # Rate limiter tests
 .claude/
   settings.json            # Shared Claude Code project settings

@@ -137,6 +137,91 @@ StoredRoll {
 - Each entry is small (~500 bytes).
 - With the 10-minute TTL and rate limiter (5 rolls/10s per user), even a busy server with 100 concurrent users would store at most ~30,000 entries (~15 MB). In practice, most entries are revealed or expire within minutes.
 
+## Data Flow: Event Timer
+
+### Phase 1: Timer Start
+
+```
+User types: /timer start interval:5 name:"Combat Round" repeat:3
+
+1. Discord API → index.ts (InteractionCreate event)
+2. index.ts: defer reply as ephemeral
+3. index.ts → commands/timer.ts (route by command name "timer", subcommand "start")
+4. timer.ts → ratelimit.ts: consume(userId)
+   └─ If rejected → reply with ephemeral rate-limit error
+5. timer.ts: sanitize name (strip mentions)
+6. timer.ts → timer-store.ts: validate(config)
+   └─ Checks: name length/chars, interval range, repeat range, channel timer cap (5)
+7. timer.ts → timer-store.ts: create(config, onTrigger, onComplete)
+   └─ setInterval created with intervalMinutes × 60,000ms
+   └─ Returns TimerInstance { id, name, intervalMinutes, ... }
+8. timer.ts → timer-embeds.ts: buildTimerStartedEmbed()
+9. timer.ts → Discord API: interaction.editReply() — ephemeral confirmation
+```
+
+### Phase 2: Timer Trigger (repeats on each interval)
+
+```
+setInterval fires after N minutes
+
+1. timer-store.ts interval callback: increment triggerCount
+2. Callback → timer-embeds.ts: buildTimerTriggerEmbed()
+3. Callback → Discord API: channel.send() — public message with Stop button
+4. timer-store.ts: check completion conditions
+   └─ If triggerCount >= maxRepeat → complete with "repeat-exhausted"
+   └─ If elapsed + interval > maxDurationMs → complete with "max-duration"
+   └─ Otherwise → continue
+```
+
+### Phase 3: Timer Completion
+
+```
+Timer reaches repeat limit or max duration
+
+1. timer-store.ts: clearInterval, remove from store
+2. Callback → timer-embeds.ts: buildTimerCompleteEmbed()
+3. Callback → Discord API: channel.send() — completion message with Restart button
+```
+
+### Phase 4: Stop (button or command)
+
+```
+User clicks Stop button or uses /timer stop
+
+1. Discord API → index.ts (button "tstop:<id>" or command)
+2. Verify channelId matches timer's channel (anti-replay)
+3. timer-store.ts: stop(timerId) — clearInterval, remove from store
+4. Reply with ephemeral confirmation
+```
+
+## Storage Model: TimerStore
+
+```
+Map<number, TimerInstance>
+
+TimerInstance {
+  id: number              // Session-scoped incrementing counter
+  guildId: string         // Discord guild ID
+  channelId: string       // Discord channel ID
+  name: string            // User-provided timer name (max 50 chars)
+  intervalMinutes: number // Minutes between triggers (1–480)
+  maxRepeat: number|null  // Max triggers (null = indefinite, capped by duration)
+  triggerCount: number    // How many times the timer has fired
+  startedAt: number       // Date.now() timestamp
+  maxDurationMs: number   // Max runtime from MAX_TIMER_HOURS env (default 2h)
+  intervalHandle: NodeJS.Timer // setInterval handle for cleanup
+  startedBy: string       // Discord user ID of creator
+}
+```
+
+**Runtime cap:** Configurable via `MAX_TIMER_HOURS` environment variable (default: 2 hours, range: 1–24). Even "infinite" timers (no repeat) auto-stop when the cap is reached.
+
+**Constraints:**
+- Max 5 timers per channel
+- Individual `setInterval` per timer (start/stop per-timer is trivial)
+- No persistence (lost on restart, by design)
+- Button customId encoding: `tstop:<id>`, `trestart:<id>:<interval>:<repeat>:<name>`
+
 ## Discord API Constraints
 
 | Constraint                 | Limit                         | How We Handle It                                |

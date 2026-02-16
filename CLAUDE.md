@@ -14,6 +14,7 @@ Discord dice roller bot for the **DooM & Dastardlies** TTRPG. The signature mech
 - **10-minute TTL.** Unrevealed rolls expire; clicking reveal after expiry shows a friendly error.
 - **Labeled rolls.** Optional `(Label) NdS` syntax groups results by label with subtotals.
 - **Comments replace reasons.** An optional `comment` string (max 120 chars) is shown in embeds. The old `reason` parameter no longer exists.
+- **Event timers.** `/timer start` creates recurring channel reminders. Timers auto-stop after `MAX_TIMER_HOURS` (default 2). Each trigger message has a Stop button; completion messages have a Restart button. Anyone in the channel can stop/restart timers (they're shared game resources).
 
 ## Commands
 
@@ -36,16 +37,22 @@ src/
   commands/
     roll.ts                — /roll, /r, /secret, /s command definitions + shared handler
     help.ts                — /help command definition + handler
-  interactions/buttons.ts  — "Reveal Result" button handler
+    timer.ts               — /timer start, stop, list command definitions + handler
+  interactions/
+    buttons.ts             — "Reveal Result" button handler
+    timer-buttons.ts       — Timer Stop and Restart button handlers
   lib/
     dice.ts                — Dice expression parser (with labels) + crypto-secure roller
     store.ts               — In-memory TTL store for pending secret rolls
+    timer-store.ts         — In-memory store for active event timers
     ratelimit.ts           — Per-user sliding-window rate limiter
     embeds.ts              — Discord embed builders (roll result, errors)
+    timer-embeds.ts        — Timer-specific embed builders
     logger.ts              — Structured JSON logger (metadata only, never secrets)
 tests/
   dice.test.ts             — Parser + roller unit tests (including labels)
   store.test.ts            — TTL store tests
+  timer-store.test.ts      — Timer store unit tests
   ratelimit.test.ts        — Rate limiter tests
 ```
 

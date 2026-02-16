@@ -77,6 +77,18 @@ export async function handleHelpCommand(interaction: ChatInputCommandInteraction
     ].join('\n'),
   });
 
+  embed.addFields({
+    name: 'Timer Commands',
+    value: [
+      '`/timer start interval:5 name:"Combat Round"` — Start a timer',
+      '`/timer start interval:10 name:"Rest" repeat:3` — Timer with 3 triggers',
+      '`/timer stop timer_id:1` — Stop a specific timer',
+      '`/timer stop all:true` — Stop all timers in this channel',
+      '`/timer list` — Show active timers',
+      'Timers auto-stop after max duration (default 2h).',
+    ].join('\n'),
+  });
+
   embed.setFooter({
     text: 'DooM & Dastardlies — Roll behind the screen',
   });

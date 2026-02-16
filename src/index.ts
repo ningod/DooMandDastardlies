@@ -8,8 +8,11 @@ import {
 import dotenv from "dotenv";
 import { handleRollCommand, ROLL_COMMAND_NAMES } from "./commands/roll.js";
 import { handleHelpCommand } from "./commands/help.js";
+import { handleTimerCommand } from "./commands/timer.js";
 import { handleButton } from "./interactions/buttons.js";
+import { handleTimerButton } from "./interactions/timer-buttons.js";
 import { RollStore } from "./lib/store.js";
+import { TimerStore } from "./lib/timer-store.js";
 import { RateLimiter } from "./lib/ratelimit.js";
 import { logger } from "./lib/logger.js";
 
@@ -31,6 +34,7 @@ const client = new Client({
 
 // Initialize shared services
 const store = new RollStore();
+const timerStore = new TimerStore();
 const limiter = new RateLimiter(5, 10_000); // 5 rolls per 10 seconds
 
 // Bot ready
@@ -48,7 +52,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   let deferFailed = false;
 
   try {
-    // CRITICAL: Defer roll commands IMMEDIATELY before any processing.
+    // CRITICAL: Defer commands IMMEDIATELY before any processing.
     // /help does NOT need deferring (it replies directly).
     if (interaction.isChatInputCommand() && ROLL_COMMAND_NAMES.has(interaction.commandName)) {
       const secretDefault = ["secret", "s"].includes(interaction.commandName);
@@ -58,9 +62,23 @@ client.on(Events.InteractionCreate, async (interaction) => {
       });
     }
 
+    // Timer commands are always ephemeral
+    if (interaction.isChatInputCommand() && interaction.commandName === "timer") {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    }
+
     // Button interactions need immediate defer too
     if (interaction.isButton() && interaction.customId.startsWith("reveal:")) {
       await interaction.deferUpdate();
+    }
+
+    // Timer buttons get ephemeral deferred replies
+    if (
+      interaction.isButton() &&
+      (interaction.customId.startsWith("tstop:") ||
+        interaction.customId.startsWith("trestart:"))
+    ) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     }
   } catch (err) {
     const isTimeout =
@@ -99,6 +117,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleRollCommand(interaction, store, limiter);
       } else if (interaction.commandName === "help") {
         await handleHelpCommand(interaction);
+      } else if (interaction.commandName === "timer") {
+        await handleTimerCommand(interaction, timerStore, limiter);
       }
       return;
     }
@@ -113,7 +133,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
         userTag: interaction.user.tag,
         channelId: interaction.channelId,
       });
-      await handleButton(interaction, store);
+
+      const customId = interaction.customId;
+      if (customId.startsWith("reveal:")) {
+        await handleButton(interaction, store);
+      } else if (
+        customId.startsWith("tstop:") ||
+        customId.startsWith("trestart:")
+      ) {
+        await handleTimerButton(interaction, timerStore, limiter);
+      }
       return;
     }
   } catch (err) {
@@ -158,6 +187,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 // Graceful shutdown
 function shutdown() {
   logger.info("shutdown");
+  timerStore.stopAll();
   store.stop();
   client.destroy();
   process.exit(0);
