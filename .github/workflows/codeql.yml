@@ -1,45 +1,58 @@
-name: CodeQL
+name: 'CodeQL Advanced'
 
 on:
   push:
-    branches: [main]
+    branches: ['main']
   pull_request:
-    branches: [main]
+    branches: ['main']
   schedule:
     # Run weekly on Mondays at 00:00 UTC
     - cron: '0 0 * * 1'
-  workflow_dispatch:
 
 permissions:
+  # required for all workflows
+  security-events: write
+
+  # required to fetch internal or private CodeQL packs
+  packages: read
+
+  # only required for workflows in private repositories
   actions: read
   contents: read
-  security-events: write
 
 jobs:
   analyze:
-    name: Analyze
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
 
     strategy:
       fail-fast: false
       matrix:
-        language: ['javascript-typescript']
+        include:
+          - language: actions
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
-          queries: security-and-quality
+          build-mode: ${{ matrix.build-mode }}
 
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+      - name: Run manual build steps
+        if: matrix.build-mode == 'manual'
+        shell: bash
+        run: |
+          npm ci
+          npm run build
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
-          category: "/language:${{ matrix.language }}"
+          category: '/language:${{matrix.language}}'
