@@ -7,7 +7,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "deploy-commands": "tsx src/deploy-commands.ts",
+    "deploy-commands": "node dist/deploy-commands.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src tests --ext .ts",
