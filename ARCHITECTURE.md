@@ -108,7 +108,7 @@ User clicks: "Reveal Result" button on the public message
 
 ## Storage Model
 
-### In-Memory TTL Map (`RollStore`)
+### Roll Store (`IRollStore`)
 
 ```
 Map<string, StoredRoll>
@@ -130,7 +130,7 @@ StoredRoll {
 - **TTL:** 10 minutes (600,000 ms). Entries are lazily evicted on access and actively swept every 60 seconds.
 - **Uniqueness:** Each roll has a UUID v4 key. Collisions are astronomically unlikely.
 - **Single-use reveal:** After successful reveal, the entry is deleted. Clicking the button again returns an expiry error.
-- **No persistence:** All data is lost on bot restart. This is by design — secret rolls should not persist beyond a session.
+- **Persistence (optional):** With `STORAGE_BACKEND=redis`, rolls survive restarts within their 10-minute TTL. With `memory` (default), all data is lost on restart.
 
 **Memory characteristics:**
 
@@ -219,8 +219,53 @@ TimerInstance {
 **Constraints:**
 - Max 5 timers per channel
 - Individual `setInterval` per timer (start/stop per-timer is trivial)
-- No persistence (lost on restart, by design)
+- With Redis: metadata persists, but timers are NOT auto-resumed on restart (session-scoped scheduling)
 - Button customId encoding: `tstop:<id>`, `trestart:<id>:<interval>:<repeat>:<name>`
+
+## Storage Abstraction
+
+Both the roll store and timer store are accessed through async interfaces (`IRollStore`, `ITimerStore`) defined in `src/lib/store-interface.ts`. A factory function (`src/lib/store-factory.ts`) selects the backend based on the `STORAGE_BACKEND` environment variable.
+
+```
+                    ┌──────────────┐
+                    │ store-factory│
+                    │ createStores()│
+                    └──────┬───────┘
+                           │
+             ┌─────────────┴─────────────┐
+             │                           │
+     STORAGE_BACKEND=memory      STORAGE_BACKEND=redis
+             │                           │
+     ┌───────┴────────┐         ┌───────┴────────┐
+     │ MemoryRollStore │         │ RedisRollStore  │
+     │ MemoryTimerStore│         │ RedisTimerStore │
+     └────────────────┘         └────────────────┘
+     (in-memory maps,            (@upstash/redis,
+      sweep timers)               native TTL,
+                                  Lua scripts)
+```
+
+Both implementations satisfy the same interfaces:
+
+- **`IRollStore`** — `set()`, `get()`, `claim()`, `delete()`, `start()`, `stop()`, `size`
+- **`ITimerStore`** — `validate()`, `create()`, `stop()`, `stopAllInChannel()`, `stopAll()`, `get()`, `getByChannel()`, `channelCount()`, `size`
+
+### Redis Key Schemes
+
+When `STORAGE_BACKEND=redis`:
+
+| Key Pattern | Type | Purpose |
+|---|---|---|
+| `roll:{rollId}` | String (JSON) | Stored roll data, with Redis TTL (10 min) |
+| `timer:{timerId}` | String (JSON) | Timer metadata |
+| `timer:channel:{channelId}` | Set | Active timer IDs for a channel |
+| `timer:nextid` | Counter | Atomic ID generation via `INCR` |
+| `timer:stop:{timerId}` | String | Stop flag (SET NX, 60s TTL) for cross-instance stop |
+
+### Atomic Operations
+
+- **`claim(rollId)`**: A Lua script atomically GETs and DELETEs a roll in a single Redis command. This prevents two concurrent reveal button clicks from both succeeding.
+- **Timer stop flags**: `SET NX` ensures only one instance processes a stop, preventing double-firing across instances.
 
 ## Discord API Constraints
 

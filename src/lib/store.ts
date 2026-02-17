@@ -1,16 +1,7 @@
-import { RollResult } from "./dice.js";
+import { IRollStore, StoredRoll } from "./store-interface.js";
 
-/** Data stored for a secret roll pending reveal. */
-export interface StoredRoll {
-  rollId: string;
-  userId: string;
-  channelId: string;
-  result: RollResult;
-  comment: string | null;
-  rolledAt: Date;
-  publicMessageId: string;
-  rollerTag: string;
-}
+// Re-export StoredRoll so existing imports keep working
+export type { StoredRoll } from "./store-interface.js";
 
 /** Default TTL: 10 minutes in milliseconds. */
 const DEFAULT_TTL_MS = 10 * 60 * 1000;
@@ -24,7 +15,7 @@ const CLEANUP_INTERVAL_MS = 60 * 1000;
  * Entries are keyed by a UUID roll ID. After TTL elapses, entries are
  * removed during periodic cleanup or on access.
  */
-export class RollStore {
+export class MemoryRollStore implements IRollStore {
   private readonly store = new Map<string, StoredRoll>();
   private readonly ttlMs: number;
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
@@ -52,7 +43,7 @@ export class RollStore {
   }
 
   /** Store a roll and return the roll ID. */
-  set(roll: StoredRoll): void {
+  async set(roll: StoredRoll): Promise<void> {
     this.store.set(roll.rollId, roll);
   }
 
@@ -60,7 +51,7 @@ export class RollStore {
    * Retrieve a stored roll by ID.
    * Returns null if expired or not found.
    */
-  get(rollId: string): StoredRoll | null {
+  async get(rollId: string): Promise<StoredRoll | null> {
     const entry = this.store.get(rollId);
     if (!entry) {
       return null;
@@ -75,10 +66,23 @@ export class RollStore {
   }
 
   /**
+   * Atomically retrieve and delete a roll.
+   * In memory this is trivially safe (single-threaded), but the async
+   * signature matches the interface for Redis compatibility.
+   */
+  async claim(rollId: string): Promise<StoredRoll | null> {
+    const entry = await this.get(rollId);
+    if (entry) {
+      this.store.delete(rollId);
+    }
+    return entry;
+  }
+
+  /**
    * Remove a roll from the store (e.g. after reveal).
    * Returns true if the entry existed and was removed.
    */
-  delete(rollId: string): boolean {
+  async delete(rollId: string): Promise<boolean> {
     return this.store.delete(rollId);
   }
 
@@ -101,3 +105,6 @@ export class RollStore {
     return Date.now() - entry.rolledAt.getTime() > this.ttlMs;
   }
 }
+
+/** @deprecated Use MemoryRollStore directly. Alias kept for transition. */
+export const RollStore = MemoryRollStore;

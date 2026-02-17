@@ -5,6 +5,16 @@
  * capped by MAX_TIMER_HOURS, and support optional repeat limits.
  */
 
+import {
+  ITimerStore,
+  TimerInstance,
+  TimerConfig,
+  TimerCompleteReason,
+} from "./store-interface.js";
+
+// Re-export types so existing imports keep working
+export type { TimerInstance, TimerConfig, TimerCompleteReason } from "./store-interface.js";
+
 /** Maximum number of concurrent timers per channel. */
 const MAX_TIMERS_PER_CHANNEL = 5;
 
@@ -22,34 +32,6 @@ const NAME_PATTERN = /^[\w\s\-]+$/;
 /** Default maximum duration: 2 hours. */
 const DEFAULT_MAX_TIMER_HOURS = 2;
 
-/** Completion reason for the onComplete callback. */
-export type TimerCompleteReason = "repeat-exhausted" | "max-duration";
-
-/** A running timer instance. */
-export interface TimerInstance {
-  id: number;
-  guildId: string;
-  channelId: string;
-  name: string;
-  intervalMinutes: number;
-  maxRepeat: number | null;
-  triggerCount: number;
-  startedAt: number;
-  maxDurationMs: number;
-  intervalHandle: ReturnType<typeof setInterval>;
-  startedBy: string;
-}
-
-/** Parameters for creating a timer (before interval handle exists). */
-export interface TimerConfig {
-  guildId: string;
-  channelId: string;
-  name: string;
-  intervalMinutes: number;
-  maxRepeat: number | null;
-  startedBy: string;
-}
-
 /** Custom error for timer validation failures. */
 export class TimerParseError extends Error {
   constructor(message: string) {
@@ -58,7 +40,7 @@ export class TimerParseError extends Error {
   }
 }
 
-export class TimerStore {
+export class MemoryTimerStore implements ITimerStore {
   private readonly timers = new Map<number, TimerInstance>();
   private nextId = 1;
   readonly maxDurationMs: number;
@@ -80,7 +62,7 @@ export class TimerStore {
    * Validate timer creation parameters.
    * Throws TimerParseError with a user-friendly message on failure.
    */
-  validate(config: TimerConfig): void {
+  async validate(config: TimerConfig): Promise<void> {
     // Name checks
     if (!config.name || config.name.trim().length === 0) {
       throw new TimerParseError("Timer name cannot be empty.");
@@ -113,7 +95,8 @@ export class TimerStore {
     }
 
     // Channel capacity
-    if (this.channelCount(config.channelId) >= MAX_TIMERS_PER_CHANNEL) {
+    const count = await this.channelCount(config.channelId);
+    if (count >= MAX_TIMERS_PER_CHANNEL) {
       throw new TimerParseError(
         `This channel already has ${MAX_TIMERS_PER_CHANNEL} active timers. Stop one first with \`/timer stop\`.`
       );
@@ -128,12 +111,12 @@ export class TimerStore {
    * @param onComplete - Called when the timer ends naturally
    * @returns The created TimerInstance
    */
-  create(
+  async create(
     config: TimerConfig,
     onTrigger: (timer: TimerInstance) => void | Promise<void>,
     onComplete: (timer: TimerInstance, reason: TimerCompleteReason) => void | Promise<void>,
-  ): TimerInstance {
-    this.validate(config);
+  ): Promise<TimerInstance> {
+    await this.validate(config);
 
     const id = this.nextId++;
     const intervalMs = config.intervalMinutes * 60 * 1000;
@@ -192,7 +175,7 @@ export class TimerStore {
   }
 
   /** Stop and remove a specific timer. Returns the stopped timer or null. */
-  stop(timerId: number): TimerInstance | null {
+  async stop(timerId: number): Promise<TimerInstance | null> {
     const timer = this.timers.get(timerId);
     if (!timer) return null;
 
@@ -202,7 +185,7 @@ export class TimerStore {
   }
 
   /** Stop all timers in a channel. Returns the count of stopped timers. */
-  stopAllInChannel(channelId: string): number {
+  async stopAllInChannel(channelId: string): Promise<number> {
     let count = 0;
     for (const [id, timer] of this.timers) {
       if (timer.channelId === channelId) {
@@ -215,7 +198,7 @@ export class TimerStore {
   }
 
   /** Stop ALL timers (graceful shutdown). */
-  stopAll(): void {
+  async stopAll(): Promise<void> {
     for (const [, timer] of this.timers) {
       clearInterval(timer.intervalHandle);
     }
@@ -223,12 +206,12 @@ export class TimerStore {
   }
 
   /** Get a timer by ID. */
-  get(timerId: number): TimerInstance | null {
+  async get(timerId: number): Promise<TimerInstance | null> {
     return this.timers.get(timerId) ?? null;
   }
 
   /** Get all timers in a channel. */
-  getByChannel(channelId: string): TimerInstance[] {
+  async getByChannel(channelId: string): Promise<TimerInstance[]> {
     const result: TimerInstance[] = [];
     for (const timer of this.timers.values()) {
       if (timer.channelId === channelId) {
@@ -244,7 +227,7 @@ export class TimerStore {
   }
 
   /** Count of timers in a specific channel. */
-  channelCount(channelId: string): number {
+  async channelCount(channelId: string): Promise<number> {
     let count = 0;
     for (const timer of this.timers.values()) {
       if (timer.channelId === channelId) {
@@ -254,3 +237,6 @@ export class TimerStore {
     return count;
   }
 }
+
+/** @deprecated Use MemoryTimerStore directly. Alias kept for transition. */
+export const TimerStore = MemoryTimerStore;

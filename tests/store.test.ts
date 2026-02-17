@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { RollStore, StoredRoll } from "../src/lib/store.js";
+import { MemoryRollStore } from "../src/lib/store.js";
+import { StoredRoll } from "../src/lib/store-interface.js";
 
 function makeRoll(overrides?: Partial<StoredRoll>): StoredRoll {
   return {
@@ -24,50 +25,71 @@ function makeRoll(overrides?: Partial<StoredRoll>): StoredRoll {
   };
 }
 
-describe("RollStore", () => {
-  let store: RollStore;
+describe("MemoryRollStore", () => {
+  let store: MemoryRollStore;
 
   beforeEach(() => {
-    store = new RollStore(1000); // 1 second TTL for tests
+    store = new MemoryRollStore(1000); // 1 second TTL for tests
   });
 
   afterEach(() => {
     store.stop();
   });
 
-  it("stores and retrieves a roll", () => {
+  it("stores and retrieves a roll", async () => {
     const roll = makeRoll();
-    store.set(roll);
-    const retrieved = store.get("test-roll-1");
+    await store.set(roll);
+    const retrieved = await store.get("test-roll-1");
     expect(retrieved).toEqual(roll);
   });
 
-  it("returns null for non-existent roll", () => {
-    expect(store.get("nonexistent")).toBeNull();
+  it("returns null for non-existent roll", async () => {
+    expect(await store.get("nonexistent")).toBeNull();
   });
 
-  it("deletes a roll", () => {
+  it("deletes a roll", async () => {
     const roll = makeRoll();
-    store.set(roll);
-    expect(store.delete("test-roll-1")).toBe(true);
-    expect(store.get("test-roll-1")).toBeNull();
+    await store.set(roll);
+    expect(await store.delete("test-roll-1")).toBe(true);
+    expect(await store.get("test-roll-1")).toBeNull();
   });
 
-  it("returns null for expired roll", () => {
+  it("returns null for expired roll", async () => {
     const roll = makeRoll({
       rolledAt: new Date(Date.now() - 2000), // 2 seconds ago, TTL is 1s
     });
-    store.set(roll);
-    expect(store.get("test-roll-1")).toBeNull();
+    await store.set(roll);
+    expect(await store.get("test-roll-1")).toBeNull();
   });
 
-  it("tracks size", () => {
+  it("tracks size", async () => {
     expect(store.size).toBe(0);
-    store.set(makeRoll({ rollId: "a" }));
+    await store.set(makeRoll({ rollId: "a" }));
     expect(store.size).toBe(1);
-    store.set(makeRoll({ rollId: "b" }));
+    await store.set(makeRoll({ rollId: "b" }));
     expect(store.size).toBe(2);
-    store.delete("a");
+    await store.delete("a");
     expect(store.size).toBe(1);
+  });
+
+  it("claims a roll (atomic get+delete)", async () => {
+    const roll = makeRoll();
+    await store.set(roll);
+    const claimed = await store.claim("test-roll-1");
+    expect(claimed).toEqual(roll);
+    expect(await store.get("test-roll-1")).toBeNull();
+    expect(store.size).toBe(0);
+  });
+
+  it("claim returns null for non-existent roll", async () => {
+    expect(await store.claim("nonexistent")).toBeNull();
+  });
+
+  it("claim returns null for expired roll", async () => {
+    const roll = makeRoll({
+      rolledAt: new Date(Date.now() - 2000),
+    });
+    await store.set(roll);
+    expect(await store.claim("test-roll-1")).toBeNull();
   });
 });

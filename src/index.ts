@@ -11,8 +11,7 @@ import { handleHelpCommand } from "./commands/help.js";
 import { handleTimerCommand } from "./commands/timer.js";
 import { handleButton } from "./interactions/buttons.js";
 import { handleTimerButton } from "./interactions/timer-buttons.js";
-import { RollStore } from "./lib/store.js";
-import { TimerStore } from "./lib/timer-store.js";
+import { createStores } from "./lib/store-factory.js";
 import { RateLimiter } from "./lib/ratelimit.js";
 import { logger } from "./lib/logger.js";
 
@@ -33,8 +32,7 @@ const client = new Client({
 });
 
 // Initialize shared services
-const store = new RollStore();
-const timerStore = new TimerStore();
+const { rollStore, timerStore } = createStores();
 const limiter = new RateLimiter(5, 10_000); // 5 rolls per 10 seconds
 
 // Bot ready
@@ -43,7 +41,7 @@ client.once(Events.ClientReady, (readyClient) => {
     user: readyClient.user.tag,
     guilds: readyClient.guilds.cache.size,
   });
-  store.start();
+  rollStore.start();
 });
 
 // Interaction handler
@@ -114,7 +112,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       });
 
       if (ROLL_COMMAND_NAMES.has(interaction.commandName)) {
-        await handleRollCommand(interaction, store, limiter);
+        await handleRollCommand(interaction, rollStore, limiter);
       } else if (interaction.commandName === "help") {
         await handleHelpCommand(interaction);
       } else if (interaction.commandName === "timer") {
@@ -136,7 +134,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       const customId = interaction.customId;
       if (customId.startsWith("reveal:")) {
-        await handleButton(interaction, store);
+        await handleButton(interaction, rollStore);
       } else if (
         customId.startsWith("tstop:") ||
         customId.startsWith("trestart:")
@@ -185,10 +183,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 // Graceful shutdown
-function shutdown() {
+async function shutdown() {
   logger.info("shutdown");
-  timerStore.stopAll();
-  store.stop();
+  await timerStore.stopAll();
+  rollStore.stop();
   client.destroy();
   process.exit(0);
 }

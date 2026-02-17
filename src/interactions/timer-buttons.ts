@@ -1,5 +1,6 @@
 import { ButtonInteraction, MessageFlags } from "discord.js";
-import { TimerStore, TimerParseError } from "../lib/timer-store.js";
+import { TimerParseError } from "../lib/timer-store.js";
+import { ITimerStore, TimerInstance, TimerCompleteReason } from "../lib/store-interface.js";
 import { RateLimiter } from "../lib/ratelimit.js";
 import {
   buildTimerTriggerEmbed,
@@ -10,14 +11,13 @@ import {
 import { buildStopButton, buildRestartButton } from "../commands/timer.js";
 import { buildErrorEmbed } from "../lib/embeds.js";
 import { logger } from "../lib/logger.js";
-import { TimerInstance, TimerCompleteReason } from "../lib/timer-store.js";
 
 /**
  * Handle timer-related button interactions (tstop: and trestart: prefixes).
  */
 export async function handleTimerButton(
   interaction: ButtonInteraction,
-  timerStore: TimerStore,
+  timerStore: ITimerStore,
   limiter: RateLimiter,
 ): Promise<void> {
   const customId = interaction.customId;
@@ -35,7 +35,7 @@ export async function handleTimerButton(
 
 async function handleStopButton(
   interaction: ButtonInteraction,
-  timerStore: TimerStore,
+  timerStore: ITimerStore,
 ): Promise<void> {
   const timerId = parseInt(interaction.customId.slice("tstop:".length), 10);
 
@@ -46,7 +46,7 @@ async function handleStopButton(
     return;
   }
 
-  const timer = timerStore.get(timerId);
+  const timer = await timerStore.get(timerId);
 
   if (!timer) {
     await interaction.editReply({
@@ -71,7 +71,7 @@ async function handleStopButton(
     return;
   }
 
-  timerStore.stop(timerId);
+  await timerStore.stop(timerId);
 
   logger.info("timer-stopped-button", {
     timerId,
@@ -91,7 +91,7 @@ async function handleStopButton(
 
 async function handleRestartButton(
   interaction: ButtonInteraction,
-  timerStore: TimerStore,
+  timerStore: ITimerStore,
   limiter: RateLimiter,
 ): Promise<void> {
   const userId = interaction.user.id;
@@ -148,7 +148,7 @@ async function handleRestartButton(
 
   let timer: TimerInstance;
   try {
-    timer = timerStore.create(
+    timer = await timerStore.create(
       {
         guildId,
         channelId: interaction.channelId,

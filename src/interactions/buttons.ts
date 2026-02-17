@@ -2,7 +2,7 @@ import {
   ButtonInteraction,
   MessageFlags,
 } from 'discord.js';
-import { RollStore } from '../lib/store.js';
+import { IRollStore } from '../lib/store-interface.js';
 import { buildRollEmbed, buildErrorEmbed, buildRevealEmbed } from '../lib/embeds.js';
 import { logger } from '../lib/logger.js';
 
@@ -11,7 +11,7 @@ import { logger } from '../lib/logger.js';
  *
  * Custom IDs follow the pattern: "reveal:<rollId>"
  */
-export async function handleButton(interaction: ButtonInteraction, store: RollStore): Promise<void> {
+export async function handleButton(interaction: ButtonInteraction, store: IRollStore): Promise<void> {
   const customId = interaction.customId;
 
   if (!customId.startsWith('reveal:')) {
@@ -28,11 +28,11 @@ export async function handleButton(interaction: ButtonInteraction, store: RollSt
     userId,
     userTag: interaction.user.tag,
     channelId: interaction.channelId,
-    storeSize: store.size,
+    storeSize: await store.size,
   });
 
   // Look up the stored roll
-  const stored = store.get(rollId);
+  const stored = await store.get(rollId);
 
   if (!stored) {
     // Expired or already revealed
@@ -181,7 +181,7 @@ export async function handleButton(interaction: ButtonInteraction, store: RollSt
   });
 
   // Remove from store to prevent duplicate reveals
-  store.delete(rollId);
+  await store.delete(rollId);
 
   logger.info('reveal', {
     userId,

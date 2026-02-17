@@ -93,6 +93,7 @@ DISCORD_BOT_TOKEN=your-bot-token-here
 DISCORD_CLIENT_ID=your-client-id-here
 DISCORD_GUILD_ID=your-test-guild-id    # optional, for dev
 MAX_TIMER_HOURS=2                      # optional, max timer runtime (1-24, default 2)
+STORAGE_BACKEND=memory                 # optional, "memory" (default) or "redis"
 ```
 
 **Where to find these values:**
@@ -100,6 +101,25 @@ MAX_TIMER_HOURS=2                      # optional, max timer runtime (1-24, defa
 - **Bot Token**: Discord Developer Portal → Your App → Bot → Reset Token
 - **Client ID**: Discord Developer Portal → Your App → General Information → Application ID
 - **Guild ID**: Right-click your Discord server → Copy Server ID (enable Developer Mode in Discord settings)
+
+### Redis Persistence (Optional)
+
+By default the bot uses in-memory storage — no external services required. To persist secret rolls and timer metadata across restarts, you can enable the Redis backend using [Upstash Redis](https://upstash.com/):
+
+1. Set `STORAGE_BACKEND=redis` in your `.env` (or as a Fly.io env var).
+2. Provide `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
+
+**On Fly.io:**
+
+```bash
+fly secrets set UPSTASH_REDIS_REST_URL=https://your-redis.upstash.io
+fly secrets set UPSTASH_REDIS_REST_TOKEN=your-token-here
+```
+
+With Redis enabled:
+- Secret rolls survive restarts within their 10-minute TTL
+- Timer metadata persists (but timers are not auto-resumed — they are session-scoped)
+- Atomic reveal operations prevent race conditions across multiple instances
 
 ### 4. Register slash commands
 
@@ -234,16 +254,22 @@ src/
     timer-buttons.ts       # Timer Stop and Restart button handlers
   lib/
     dice.ts                # Dice expression parser (with labels) & roller
-    store.ts               # In-memory TTL store for secret rolls
-    timer-store.ts         # In-memory store for active event timers
+    store-interface.ts     # Async storage interfaces (IRollStore, ITimerStore)
+    store.ts               # In-memory TTL store for secret rolls (MemoryRollStore)
+    timer-store.ts         # In-memory store for active event timers (MemoryTimerStore)
+    redis-roll-store.ts    # Redis-backed roll store (RedisRollStore)
+    redis-timer-store.ts   # Redis-backed timer store (RedisTimerStore)
+    store-factory.ts       # Factory: selects backend via STORAGE_BACKEND env
     ratelimit.ts           # Per-user rate limiter
     embeds.ts              # Discord embed builders
     timer-embeds.ts        # Timer-specific embed builders
     logger.ts              # Structured JSON logger
 tests/
   dice.test.ts             # Dice parser & roller tests (including labels)
-  store.test.ts            # TTL store tests
-  timer-store.test.ts      # Timer store tests
+  store.test.ts            # TTL store tests (MemoryRollStore)
+  timer-store.test.ts      # Timer store tests (MemoryTimerStore)
+  redis-roll-store.test.ts # Redis roll store tests (mocked)
+  redis-timer-store.test.ts # Redis timer store tests (mocked)
   ratelimit.test.ts        # Rate limiter tests
 .claude/
   settings.json            # Shared Claude Code project settings

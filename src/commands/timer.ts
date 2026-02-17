@@ -7,12 +7,12 @@ import {
   MessageFlags,
   TextChannel,
 } from "discord.js";
+import { TimerParseError } from "../lib/timer-store.js";
 import {
-  TimerStore,
-  TimerParseError,
+  ITimerStore,
   TimerInstance,
   TimerCompleteReason,
-} from "../lib/timer-store.js";
+} from "../lib/store-interface.js";
 import { RateLimiter } from "../lib/ratelimit.js";
 import {
   buildTimerTriggerEmbed,
@@ -136,7 +136,7 @@ export const timerCommandData = new SlashCommandBuilder()
 /** Handle /timer interactions. */
 export async function handleTimerCommand(
   interaction: ChatInputCommandInteraction,
-  timerStore: TimerStore,
+  timerStore: ITimerStore,
   limiter: RateLimiter,
 ): Promise<void> {
   const subcommand = interaction.options.getSubcommand();
@@ -160,7 +160,7 @@ export async function handleTimerCommand(
 
 async function handleTimerStart(
   interaction: ChatInputCommandInteraction,
-  timerStore: TimerStore,
+  timerStore: ITimerStore,
   limiter: RateLimiter,
 ): Promise<void> {
   const userId = interaction.user.id;
@@ -203,7 +203,7 @@ async function handleTimerStart(
   // Validate and create
   let timer: TimerInstance;
   try {
-    timer = timerStore.create(
+    timer = await timerStore.create(
       {
         guildId,
         channelId: interaction.channelId,
@@ -315,7 +315,7 @@ async function sendCompleteMessage(
 
 async function handleTimerStop(
   interaction: ChatInputCommandInteraction,
-  timerStore: TimerStore,
+  timerStore: ITimerStore,
 ): Promise<void> {
   const timerId = interaction.options.getInteger("timer_id") ?? null;
   const all = interaction.options.getBoolean("all") ?? false;
@@ -333,7 +333,7 @@ async function handleTimerStop(
   }
 
   if (all) {
-    const count = timerStore.stopAllInChannel(interaction.channelId);
+    const count = await timerStore.stopAllInChannel(interaction.channelId);
 
     logger.info("timer-stop-all", {
       channelId: interaction.channelId,
@@ -359,7 +359,7 @@ async function handleTimerStop(
   }
 
   // Stop specific timer
-  const timer = timerStore.get(timerId!);
+  const timer = await timerStore.get(timerId!);
   if (!timer) {
     await interaction.editReply({
       embeds: [
@@ -383,7 +383,7 @@ async function handleTimerStop(
     return;
   }
 
-  timerStore.stop(timerId!);
+  await timerStore.stop(timerId!);
 
   logger.info("timer-stopped", {
     timerId,
@@ -403,9 +403,9 @@ async function handleTimerStop(
 
 async function handleTimerList(
   interaction: ChatInputCommandInteraction,
-  timerStore: TimerStore,
+  timerStore: ITimerStore,
 ): Promise<void> {
-  const timers = timerStore.getByChannel(interaction.channelId);
+  const timers = await timerStore.getByChannel(interaction.channelId);
   const embed = buildTimerListEmbed(timers);
 
   await interaction.editReply({ embeds: [embed] });

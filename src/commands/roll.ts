@@ -7,7 +7,7 @@ import {
 } from 'discord.js';
 import { v4 as uuidv4 } from 'uuid';
 import { parseDice, rollDice, DiceParseError } from '../lib/dice.js';
-import { RollStore } from '../lib/store.js';
+import { IRollStore } from '../lib/store-interface.js';
 import { RateLimiter } from '../lib/ratelimit.js';
 import {
   buildRollEmbed,
@@ -122,7 +122,7 @@ function sanitizeComment(raw: string): string {
  */
 export async function handleRollCommand(
   interaction: ChatInputCommandInteraction,
-  store: RollStore,
+  store: IRollStore,
   limiter: RateLimiter
 ): Promise<void> {
   const userId = interaction.user.id;
@@ -252,7 +252,7 @@ export async function handleRollCommand(
   });
 
   // Step 3: Store the roll with public message ID
-  store.set({
+  await store.set({
     rollId,
     userId,
     channelId: interaction.channelId,
@@ -268,6 +268,6 @@ export async function handleRollCommand(
     userId,
     channelId: interaction.channelId,
     publicMessageId: publicMessage.id,
-    storeSize: store.size,
+    storeSize: await store.size,
   });
 }

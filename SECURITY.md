@@ -9,6 +9,20 @@ This document defines the security requirements and policies for the DooM & Dast
 - `.env` and `.env.*` files (except `.env.example`) are excluded from version control via `.gitignore`.
 - `.env.example` contains only placeholder values and variable names.
 
+## Redis Credentials (Optional)
+
+When the optional Redis storage backend is enabled (`STORAGE_BACKEND=redis`), two additional secrets are required:
+
+- **`UPSTASH_REDIS_REST_URL`** — the Upstash Redis REST endpoint
+- **`UPSTASH_REDIS_REST_TOKEN`** — the authentication token
+
+**Security requirements:**
+
+- These values **must** be set via environment variables or `fly secrets set`. They must **never** appear in `fly.toml`, source code, or committed files.
+- The only Redis-related value safe to commit is `STORAGE_BACKEND` (which is `"memory"` by default).
+- Redis data is protected by Upstash's TLS-encrypted REST API — all traffic is HTTPS.
+- Atomic operations (Lua scripts) are used for the `claim()` operation to prevent race conditions during secret roll reveals.
+
 ## Logging Policy
 
 The bot uses a structured JSON logger (`src/lib/logger.ts`).
@@ -86,7 +100,7 @@ All dice rolls use `crypto.randomInt()` from Node.js's `node:crypto` module. Thi
 
 ## Dependency Policy
 
-- Dependencies are minimal: `discord.js`, `dotenv`, `uuid`.
+- Dependencies are minimal: `discord.js`, `dotenv`, `uuid`, `@upstash/redis` (optional, for Redis persistence).
 - New dependencies require explicit justification.
 - `npm audit` should be run periodically to check for known vulnerabilities.
 - Dev dependencies (`typescript`, `vitest`, `ts-node`, type packages) are not included in production builds.

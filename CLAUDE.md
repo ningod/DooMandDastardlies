@@ -15,6 +15,7 @@ Discord dice roller bot for the **DooM & Dastardlies** TTRPG. The signature mech
 - **Labeled rolls.** Optional `(Label) NdS` syntax groups results by label with subtotals.
 - **Comments replace reasons.** An optional `comment` string (max 120 chars) is shown in embeds. The old `reason` parameter no longer exists.
 - **Event timers.** `/timer start` creates recurring channel reminders. Timers auto-stop after `MAX_TIMER_HOURS` (default 2). Each trigger message has a Stop button; completion messages have a Restart button. Anyone in the channel can stop/restart timers (they're shared game resources).
+- **Storage backends.** `STORAGE_BACKEND` env selects `"memory"` (default) or `"redis"` (Upstash). Both implement the same async interfaces (`IRollStore`, `ITimerStore`). Memory requires no setup; Redis enables persistence across restarts.
 
 ## Commands
 
@@ -43,16 +44,22 @@ src/
     timer-buttons.ts       — Timer Stop and Restart button handlers
   lib/
     dice.ts                — Dice expression parser (with labels) + crypto-secure roller
-    store.ts               — In-memory TTL store for pending secret rolls
-    timer-store.ts         — In-memory store for active event timers
+    store-interface.ts     — Async storage interfaces (IRollStore, ITimerStore) + shared types
+    store.ts               — In-memory TTL store for pending secret rolls (MemoryRollStore)
+    timer-store.ts         — In-memory store for active event timers (MemoryTimerStore)
+    redis-roll-store.ts    — Redis-backed roll store (RedisRollStore, @upstash/redis)
+    redis-timer-store.ts   — Redis-backed timer store (RedisTimerStore, hybrid local+Redis)
+    store-factory.ts       — Factory: selects backend via STORAGE_BACKEND env var
     ratelimit.ts           — Per-user sliding-window rate limiter
     embeds.ts              — Discord embed builders (roll result, errors)
     timer-embeds.ts        — Timer-specific embed builders
     logger.ts              — Structured JSON logger (metadata only, never secrets)
 tests/
   dice.test.ts             — Parser + roller unit tests (including labels)
-  store.test.ts            — TTL store tests
-  timer-store.test.ts      — Timer store unit tests
+  store.test.ts            — TTL store tests (MemoryRollStore)
+  timer-store.test.ts      — Timer store unit tests (MemoryTimerStore)
+  redis-roll-store.test.ts — Redis roll store tests (mocked @upstash/redis)
+  redis-timer-store.test.ts — Redis timer store tests (mocked @upstash/redis)
   ratelimit.test.ts        — Rate limiter tests
 ```
 

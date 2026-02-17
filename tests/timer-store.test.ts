@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
-  TimerStore,
+  MemoryTimerStore,
   TimerParseError,
+} from "../src/lib/timer-store.js";
+import {
   TimerConfig,
   TimerInstance,
-  TimerCompleteReason,
-} from "../src/lib/timer-store.js";
+} from "../src/lib/store-interface.js";
 
 function makeConfig(overrides?: Partial<TimerConfig>): TimerConfig {
   return {
@@ -19,7 +20,7 @@ function makeConfig(overrides?: Partial<TimerConfig>): TimerConfig {
   };
 }
 
-describe("TimerStore", () => {
+describe("MemoryTimerStore", () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -31,107 +32,107 @@ describe("TimerStore", () => {
   // ---------- validate() ----------
 
   describe("validate()", () => {
-    it("accepts valid config", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
-      expect(() => store.validate(makeConfig())).not.toThrow();
+    it("accepts valid config", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
+      await expect(store.validate(makeConfig())).resolves.toBeUndefined();
     });
 
-    it("rejects empty name", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
-      expect(() => store.validate(makeConfig({ name: "" }))).toThrow(
+    it("rejects empty name", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
+      await expect(store.validate(makeConfig({ name: "" }))).rejects.toThrow(
         TimerParseError
       );
-      expect(() => store.validate(makeConfig({ name: "   " }))).toThrow(
+      await expect(store.validate(makeConfig({ name: "   " }))).rejects.toThrow(
         TimerParseError
       );
     });
 
-    it("rejects name longer than 50 characters", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
+    it("rejects name longer than 50 characters", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
       const longName = "A".repeat(51);
-      expect(() => store.validate(makeConfig({ name: longName }))).toThrow(
+      await expect(store.validate(makeConfig({ name: longName }))).rejects.toThrow(
         /too long/
       );
     });
 
-    it("rejects name with unsafe characters", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
-      expect(() => store.validate(makeConfig({ name: "Test@Timer!" }))).toThrow(
+    it("rejects name with unsafe characters", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
+      await expect(store.validate(makeConfig({ name: "Test@Timer!" }))).rejects.toThrow(
         /invalid characters/
       );
     });
 
-    it("accepts name with letters, numbers, spaces, underscores, hyphens", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
-      expect(() =>
+    it("accepts name with letters, numbers, spaces, underscores, hyphens", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
+      await expect(
         store.validate(makeConfig({ name: "Combat Round 2_test-run" }))
-      ).not.toThrow();
+      ).resolves.toBeUndefined();
     });
 
-    it("rejects interval below minimum", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
-      expect(() =>
+    it("rejects interval below minimum", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
+      await expect(
         store.validate(makeConfig({ intervalMinutes: 0 }))
-      ).toThrow(/between/);
+      ).rejects.toThrow(/between/);
     });
 
-    it("rejects interval above maximum", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
-      expect(() =>
+    it("rejects interval above maximum", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
+      await expect(
         store.validate(makeConfig({ intervalMinutes: 481 }))
-      ).toThrow(/between/);
+      ).rejects.toThrow(/between/);
     });
 
-    it("rejects repeat below 1", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
-      expect(() =>
+    it("rejects repeat below 1", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
+      await expect(
         store.validate(makeConfig({ maxRepeat: 0 }))
-      ).toThrow(/between/);
+      ).rejects.toThrow(/between/);
     });
 
-    it("rejects repeat above 100", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
-      expect(() =>
+    it("rejects repeat above 100", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
+      await expect(
         store.validate(makeConfig({ maxRepeat: 101 }))
-      ).toThrow(/between/);
+      ).rejects.toThrow(/between/);
     });
 
-    it("rejects when channel has 5 timers already", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
+    it("rejects when channel has 5 timers already", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
       const noop = vi.fn();
 
       for (let i = 0; i < 5; i++) {
-        store.create(makeConfig({ name: `Timer ${i}` }), noop, noop);
+        await store.create(makeConfig({ name: `Timer ${i}` }), noop, noop);
       }
 
-      expect(() =>
+      await expect(
         store.validate(makeConfig({ name: "One Too Many" }))
-      ).toThrow(/already has 5/);
+      ).rejects.toThrow(/already has 5/);
     });
   });
 
   // ---------- create() ----------
 
   describe("create()", () => {
-    it("creates a timer and assigns incrementing ID", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
+    it("creates a timer and assigns incrementing ID", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
       const noop = vi.fn();
 
-      const t1 = store.create(makeConfig({ name: "First" }), noop, noop);
-      const t2 = store.create(makeConfig({ name: "Second" }), noop, noop);
+      const t1 = await store.create(makeConfig({ name: "First" }), noop, noop);
+      const t2 = await store.create(makeConfig({ name: "Second" }), noop, noop);
 
       expect(t2.id).toBe(t1.id + 1);
       expect(store.size).toBe(2);
 
-      store.stopAll();
+      await store.stopAll();
     });
 
-    it("calls onTrigger after one interval", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
+    it("calls onTrigger after one interval", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
       const onTrigger = vi.fn();
       const onComplete = vi.fn();
 
-      store.create(
+      await store.create(
         makeConfig({ intervalMinutes: 1 }),
         onTrigger,
         onComplete
@@ -142,17 +143,17 @@ describe("TimerStore", () => {
       expect(onTrigger).toHaveBeenCalledTimes(1);
       expect(onComplete).not.toHaveBeenCalled();
 
-      store.stopAll();
+      await store.stopAll();
     });
 
-    it("increments triggerCount on each trigger", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
+    it("increments triggerCount on each trigger", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
       const triggers: number[] = [];
       const onTrigger = vi.fn((timer: TimerInstance) => {
         triggers.push(timer.triggerCount);
       });
 
-      store.create(
+      await store.create(
         makeConfig({ intervalMinutes: 1 }),
         onTrigger,
         vi.fn()
@@ -162,15 +163,15 @@ describe("TimerStore", () => {
 
       expect(triggers).toEqual([1, 2, 3]);
 
-      store.stopAll();
+      await store.stopAll();
     });
 
-    it("calls onComplete with 'repeat-exhausted' after N triggers", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
+    it("calls onComplete with 'repeat-exhausted' after N triggers", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
       const onTrigger = vi.fn();
       const onComplete = vi.fn();
 
-      store.create(
+      await store.create(
         makeConfig({ intervalMinutes: 1, maxRepeat: 3 }),
         onTrigger,
         onComplete
@@ -187,15 +188,15 @@ describe("TimerStore", () => {
       expect(store.size).toBe(0);
     });
 
-    it("calls onComplete with 'max-duration' when time exceeds limit", () => {
+    it("calls onComplete with 'max-duration' when time exceeds limit", async () => {
       // Max duration of 5 minutes, interval of 2 minutes
       // Tick 1 at 2min: elapsed=2min, next tick at 4min (4min < 5min) → continue
       // Tick 2 at 4min: elapsed=4min, next tick at 6min (6min > 5min) → complete
-      const store = new TimerStore(5 * 60 * 1000); // 5 minutes
+      const store = new MemoryTimerStore(5 * 60 * 1000); // 5 minutes
       const onTrigger = vi.fn();
       const onComplete = vi.fn();
 
-      store.create(
+      await store.create(
         makeConfig({ intervalMinutes: 2 }),
         onTrigger,
         onComplete
@@ -212,11 +213,11 @@ describe("TimerStore", () => {
       expect(store.size).toBe(0);
     });
 
-    it("removes timer from store after completion", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
+    it("removes timer from store after completion", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
       const onComplete = vi.fn();
 
-      const timer = store.create(
+      const timer = await store.create(
         makeConfig({ intervalMinutes: 1, maxRepeat: 1 }),
         vi.fn(),
         onComplete
@@ -224,15 +225,15 @@ describe("TimerStore", () => {
 
       vi.advanceTimersByTime(60_000);
 
-      expect(store.get(timer.id)).toBeNull();
+      expect(await store.get(timer.id)).toBeNull();
       expect(store.size).toBe(0);
     });
 
-    it("does not call onTrigger after stop", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
+    it("does not call onTrigger after stop", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
       const onTrigger = vi.fn();
 
-      const timer = store.create(
+      const timer = await store.create(
         makeConfig({ intervalMinutes: 1 }),
         onTrigger,
         vi.fn()
@@ -241,7 +242,7 @@ describe("TimerStore", () => {
       vi.advanceTimersByTime(60_000); // 1 trigger
       expect(onTrigger).toHaveBeenCalledTimes(1);
 
-      store.stop(timer.id);
+      await store.stop(timer.id);
 
       vi.advanceTimersByTime(120_000); // 2 more minutes
       expect(onTrigger).toHaveBeenCalledTimes(1); // still 1
@@ -251,66 +252,66 @@ describe("TimerStore", () => {
   // ---------- stop() ----------
 
   describe("stop()", () => {
-    it("stops and removes a timer by ID", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
-      const timer = store.create(makeConfig(), vi.fn(), vi.fn());
+    it("stops and removes a timer by ID", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
+      const timer = await store.create(makeConfig(), vi.fn(), vi.fn());
 
-      const stopped = store.stop(timer.id);
+      const stopped = await store.stop(timer.id);
 
       expect(stopped).not.toBeNull();
       expect(stopped!.id).toBe(timer.id);
       expect(store.size).toBe(0);
     });
 
-    it("returns null for non-existent timer ID", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
-      expect(store.stop(999)).toBeNull();
+    it("returns null for non-existent timer ID", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
+      expect(await store.stop(999)).toBeNull();
     });
   });
 
   // ---------- stopAllInChannel() ----------
 
   describe("stopAllInChannel()", () => {
-    it("stops all timers in specified channel", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
+    it("stops all timers in specified channel", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
       const noop = vi.fn();
 
-      store.create(makeConfig({ channelId: "ch-1", name: "Timer A" }), noop, noop);
-      store.create(makeConfig({ channelId: "ch-1", name: "Timer B" }), noop, noop);
-      store.create(makeConfig({ channelId: "ch-2", name: "Timer C" }), noop, noop);
+      await store.create(makeConfig({ channelId: "ch-1", name: "Timer A" }), noop, noop);
+      await store.create(makeConfig({ channelId: "ch-1", name: "Timer B" }), noop, noop);
+      await store.create(makeConfig({ channelId: "ch-2", name: "Timer C" }), noop, noop);
 
-      const count = store.stopAllInChannel("ch-1");
+      const count = await store.stopAllInChannel("ch-1");
 
       expect(count).toBe(2);
-      expect(store.channelCount("ch-1")).toBe(0);
+      expect(await store.channelCount("ch-1")).toBe(0);
     });
 
-    it("does not affect timers in other channels", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
+    it("does not affect timers in other channels", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
       const noop = vi.fn();
 
-      store.create(makeConfig({ channelId: "ch-1", name: "Timer A" }), noop, noop);
-      store.create(makeConfig({ channelId: "ch-2", name: "Timer B" }), noop, noop);
+      await store.create(makeConfig({ channelId: "ch-1", name: "Timer A" }), noop, noop);
+      await store.create(makeConfig({ channelId: "ch-2", name: "Timer B" }), noop, noop);
 
-      store.stopAllInChannel("ch-1");
+      await store.stopAllInChannel("ch-1");
 
-      expect(store.channelCount("ch-2")).toBe(1);
+      expect(await store.channelCount("ch-2")).toBe(1);
 
-      store.stopAll();
+      await store.stopAll();
     });
   });
 
   // ---------- stopAll() ----------
 
   describe("stopAll()", () => {
-    it("stops all timers across all channels", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
+    it("stops all timers across all channels", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
       const noop = vi.fn();
 
-      store.create(makeConfig({ channelId: "ch-1", name: "Timer A" }), noop, noop);
-      store.create(makeConfig({ channelId: "ch-2", name: "Timer B" }), noop, noop);
+      await store.create(makeConfig({ channelId: "ch-1", name: "Timer A" }), noop, noop);
+      await store.create(makeConfig({ channelId: "ch-2", name: "Timer B" }), noop, noop);
 
-      store.stopAll();
+      await store.stopAll();
 
       expect(store.size).toBe(0);
     });
@@ -319,43 +320,43 @@ describe("TimerStore", () => {
   // ---------- getByChannel() ----------
 
   describe("getByChannel()", () => {
-    it("returns only timers for the specified channel", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
+    it("returns only timers for the specified channel", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
       const noop = vi.fn();
 
-      store.create(makeConfig({ channelId: "ch-1", name: "Timer A" }), noop, noop);
-      store.create(makeConfig({ channelId: "ch-1", name: "Timer B" }), noop, noop);
-      store.create(makeConfig({ channelId: "ch-2", name: "Timer C" }), noop, noop);
+      await store.create(makeConfig({ channelId: "ch-1", name: "Timer A" }), noop, noop);
+      await store.create(makeConfig({ channelId: "ch-1", name: "Timer B" }), noop, noop);
+      await store.create(makeConfig({ channelId: "ch-2", name: "Timer C" }), noop, noop);
 
-      const ch1Timers = store.getByChannel("ch-1");
+      const ch1Timers = await store.getByChannel("ch-1");
       expect(ch1Timers).toHaveLength(2);
       expect(ch1Timers.every((t) => t.channelId === "ch-1")).toBe(true);
 
-      store.stopAll();
+      await store.stopAll();
     });
 
-    it("returns empty array when no timers in channel", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
-      expect(store.getByChannel("nonexistent")).toEqual([]);
+    it("returns empty array when no timers in channel", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
+      expect(await store.getByChannel("nonexistent")).toEqual([]);
     });
   });
 
   // ---------- channelCount() ----------
 
   describe("channelCount()", () => {
-    it("returns correct count for channel", () => {
-      const store = new TimerStore(2 * 60 * 60 * 1000);
+    it("returns correct count for channel", async () => {
+      const store = new MemoryTimerStore(2 * 60 * 60 * 1000);
       const noop = vi.fn();
 
-      expect(store.channelCount("ch-1")).toBe(0);
+      expect(await store.channelCount("ch-1")).toBe(0);
 
-      store.create(makeConfig({ channelId: "ch-1", name: "Timer A" }), noop, noop);
-      expect(store.channelCount("ch-1")).toBe(1);
+      await store.create(makeConfig({ channelId: "ch-1", name: "Timer A" }), noop, noop);
+      expect(await store.channelCount("ch-1")).toBe(1);
 
-      store.create(makeConfig({ channelId: "ch-1", name: "Timer B" }), noop, noop);
-      expect(store.channelCount("ch-1")).toBe(2);
+      await store.create(makeConfig({ channelId: "ch-1", name: "Timer B" }), noop, noop);
+      expect(await store.channelCount("ch-1")).toBe(2);
 
-      store.stopAll();
+      await store.stopAll();
     });
   });
 });
