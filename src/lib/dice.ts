@@ -99,12 +99,13 @@ export function parseDice(input: string): DieGroup[] {
   let totalDice = 0;
 
   for (const match of matches) {
-    const rawLabel = match[1]; // may be undefined
+    // match[1] can be undefined at runtime (optional capture group) despite TS typing it as string
+    const rawLabel = match[1] as string | undefined;
     const diceStr = match[2].toLowerCase();
 
     // Validate label if present
     let label: string | undefined;
-    if (rawLabel !== undefined) {
+    if (rawLabel != null) {
       const labelTrimmed = rawLabel.trim();
       if (labelTrimmed.length > 0) {
         if (labelTrimmed.length > MAX_LABEL_LENGTH) {
@@ -122,7 +123,7 @@ export function parseDice(input: string): DieGroup[] {
     }
 
     // Parse dice notation
-    const diceMatch = diceStr.match(/^(\d*)d(\d+)$/);
+    const diceMatch = /^(\d*)d(\d+)$/.exec(diceStr);
     if (!diceMatch) {
       throw new DiceParseError(
         `Invalid dice "${diceStr}". Expected format like \`d6\` or \`2d8\`.`

@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { RedisTimerStore } from "../src/lib/redis-timer-store.js";
-import { TimerParseError } from "../src/lib/timer-store.js";
-import { TimerConfig } from "../src/lib/store-interface.js";
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { RedisTimerStore } from '../src/lib/redis-timer-store.js';
+import { TimerParseError } from '../src/lib/timer-store.js';
+import type { TimerConfig } from '../src/lib/store-interface.js';
 
 // Mock @upstash/redis
 const mockRedis = {
@@ -18,17 +18,17 @@ const mockRedis = {
 
 function makeConfig(overrides?: Partial<TimerConfig>): TimerConfig {
   return {
-    guildId: "guild-1",
-    channelId: "channel-1",
-    name: "Test Timer",
+    guildId: 'guild-1',
+    channelId: 'channel-1',
+    name: 'Test Timer',
     intervalMinutes: 5,
     maxRepeat: null,
-    startedBy: "user-1",
+    startedBy: 'user-1',
     ...overrides,
   };
 }
 
-describe("RedisTimerStore", () => {
+describe('RedisTimerStore', () => {
   let store: RedisTimerStore;
 
   beforeEach(() => {
@@ -36,7 +36,7 @@ describe("RedisTimerStore", () => {
     vi.useFakeTimers();
     mockRedis.scard.mockResolvedValue(0);
     mockRedis.incr.mockResolvedValue(1);
-    mockRedis.set.mockResolvedValue("OK");
+    mockRedis.set.mockResolvedValue('OK');
     mockRedis.sadd.mockResolvedValue(1);
     mockRedis.exists.mockResolvedValue(0);
     mockRedis.get.mockResolvedValue(null);
@@ -50,55 +50,54 @@ describe("RedisTimerStore", () => {
     vi.useRealTimers();
   });
 
-  describe("validate()", () => {
-    it("accepts valid config", async () => {
+  describe('validate()', () => {
+    it('accepts valid config', async () => {
       await expect(store.validate(makeConfig())).resolves.toBeUndefined();
     });
 
-    it("rejects empty name", async () => {
-      await expect(store.validate(makeConfig({ name: "" }))).rejects.toThrow(TimerParseError);
+    it('rejects empty name', async () => {
+      await expect(store.validate(makeConfig({ name: '' }))).rejects.toThrow(TimerParseError);
     });
 
-    it("rejects name longer than 50 characters", async () => {
-      await expect(store.validate(makeConfig({ name: "A".repeat(51) }))).rejects.toThrow(/too long/);
+    it('rejects name longer than 50 characters', async () => {
+      await expect(store.validate(makeConfig({ name: 'A'.repeat(51) }))).rejects.toThrow(
+        /too long/
+      );
     });
 
-    it("rejects when channel at capacity", async () => {
+    it('rejects when channel at capacity', async () => {
       mockRedis.scard.mockResolvedValue(5);
       await expect(store.validate(makeConfig())).rejects.toThrow(/already has 5/);
     });
 
-    it("uses SCARD for channel capacity check", async () => {
+    it('uses SCARD for channel capacity check', async () => {
       await store.validate(makeConfig());
-      expect(mockRedis.scard).toHaveBeenCalledWith("timer:channel:channel-1");
+      expect(mockRedis.scard).toHaveBeenCalledWith('timer:channel:channel-1');
     });
   });
 
-  describe("create()", () => {
-    it("calls INCR for ID, SET for metadata, SADD for channel set", async () => {
+  describe('create()', () => {
+    it('calls INCR for ID, SET for metadata, SADD for channel set', async () => {
       mockRedis.incr.mockResolvedValue(7);
       const noop = vi.fn();
 
       const timer = await store.create(makeConfig(), noop, noop);
 
       expect(timer.id).toBe(7);
-      expect(mockRedis.incr).toHaveBeenCalledWith("timer:nextid");
-      expect(mockRedis.set).toHaveBeenCalledWith(
-        "timer:7",
-        expect.any(String)
-      );
-      expect(mockRedis.sadd).toHaveBeenCalledWith("timer:channel:channel-1", 7);
+      expect(mockRedis.incr).toHaveBeenCalledWith('timer:nextid');
+      expect(mockRedis.set).toHaveBeenCalledWith('timer:7', expect.any(String));
+      expect(mockRedis.sadd).toHaveBeenCalledWith('timer:channel:channel-1', 7);
 
       await store.stopAll();
     });
 
-    it("returns a TimerInstance with correct fields", async () => {
+    it('returns a TimerInstance with correct fields', async () => {
       mockRedis.incr.mockResolvedValue(3);
       const noop = vi.fn();
 
-      const timer = await store.create(makeConfig({ name: "Combat" }), noop, noop);
+      const timer = await store.create(makeConfig({ name: 'Combat' }), noop, noop);
 
-      expect(timer.name).toBe("Combat");
+      expect(timer.name).toBe('Combat');
       expect(timer.intervalMinutes).toBe(5);
       expect(timer.triggerCount).toBe(0);
 
@@ -106,8 +105,8 @@ describe("RedisTimerStore", () => {
     });
   });
 
-  describe("stop()", () => {
-    it("clears local interval and sets stop flag in Redis", async () => {
+  describe('stop()', () => {
+    it('clears local interval and sets stop flag in Redis', async () => {
       mockRedis.incr.mockResolvedValue(1);
       const noop = vi.fn();
 
@@ -117,26 +116,24 @@ describe("RedisTimerStore", () => {
       expect(stopped).not.toBeNull();
       expect(stopped!.id).toBe(timer.id);
       // Should set stop flag
-      expect(mockRedis.set).toHaveBeenCalledWith(
-        "timer:stop:1", "1", { px: 60_000 }
-      );
+      expect(mockRedis.set).toHaveBeenCalledWith('timer:stop:1', '1', { px: 60_000 });
       // Should cleanup
-      expect(mockRedis.del).toHaveBeenCalledWith("timer:1");
-      expect(mockRedis.srem).toHaveBeenCalledWith("timer:channel:channel-1", 1);
+      expect(mockRedis.del).toHaveBeenCalledWith('timer:1');
+      expect(mockRedis.srem).toHaveBeenCalledWith('timer:channel:channel-1', 1);
     });
 
-    it("stops remote-only timer via stop flag when not local", async () => {
+    it('stops remote-only timer via stop flag when not local', async () => {
       const metadata = JSON.stringify({
         id: 99,
-        guildId: "guild-1",
-        channelId: "channel-1",
-        name: "Remote Timer",
+        guildId: 'guild-1',
+        channelId: 'channel-1',
+        name: 'Remote Timer',
         intervalMinutes: 5,
         maxRepeat: null,
         triggerCount: 2,
         startedAt: Date.now(),
         maxDurationMs: 7200000,
-        startedBy: "user-1",
+        startedBy: 'user-1',
       });
       mockRedis.get.mockResolvedValue(metadata);
 
@@ -144,32 +141,30 @@ describe("RedisTimerStore", () => {
 
       expect(stopped).not.toBeNull();
       expect(stopped!.id).toBe(99);
-      expect(mockRedis.set).toHaveBeenCalledWith(
-        "timer:stop:99", "1", { px: 60_000 }
-      );
+      expect(mockRedis.set).toHaveBeenCalledWith('timer:stop:99', '1', { px: 60_000 });
     });
 
-    it("returns null for non-existent timer", async () => {
+    it('returns null for non-existent timer', async () => {
       mockRedis.get.mockResolvedValue(null);
       const result = await store.stop(999);
       expect(result).toBeNull();
     });
   });
 
-  describe("stopAllInChannel()", () => {
-    it("uses SMEMBERS and stops each timer", async () => {
+  describe('stopAllInChannel()', () => {
+    it('uses SMEMBERS and stops each timer', async () => {
       mockRedis.smembers.mockResolvedValue([1, 2]);
 
-      const count = await store.stopAllInChannel("channel-1");
+      const count = await store.stopAllInChannel('channel-1');
 
       expect(count).toBe(2);
-      expect(mockRedis.smembers).toHaveBeenCalledWith("timer:channel:channel-1");
-      expect(mockRedis.del).toHaveBeenCalledWith("timer:channel:channel-1");
+      expect(mockRedis.smembers).toHaveBeenCalledWith('timer:channel:channel-1');
+      expect(mockRedis.del).toHaveBeenCalledWith('timer:channel:channel-1');
     });
   });
 
-  describe("get()", () => {
-    it("returns local timer if available", async () => {
+  describe('get()', () => {
+    it('returns local timer if available', async () => {
       mockRedis.incr.mockResolvedValue(1);
       const noop = vi.fn();
       const timer = await store.create(makeConfig(), noop, noop);
@@ -182,63 +177,81 @@ describe("RedisTimerStore", () => {
       await store.stopAll();
     });
 
-    it("falls back to Redis metadata when not local", async () => {
+    it('falls back to Redis metadata when not local', async () => {
       const metadata = JSON.stringify({
         id: 42,
-        guildId: "guild-1",
-        channelId: "channel-1",
-        name: "Remote",
+        guildId: 'guild-1',
+        channelId: 'channel-1',
+        name: 'Remote',
         intervalMinutes: 10,
         maxRepeat: null,
         triggerCount: 1,
         startedAt: Date.now(),
         maxDurationMs: 7200000,
-        startedBy: "user-1",
+        startedBy: 'user-1',
       });
       mockRedis.get.mockResolvedValue(metadata);
 
       const result = await store.get(42);
 
       expect(result).not.toBeNull();
-      expect(result!.name).toBe("Remote");
+      expect(result!.name).toBe('Remote');
     });
 
-    it("returns null when not found anywhere", async () => {
+    it('returns null when not found anywhere', async () => {
       mockRedis.get.mockResolvedValue(null);
       const result = await store.get(999);
       expect(result).toBeNull();
     });
   });
 
-  describe("getByChannel()", () => {
-    it("uses SMEMBERS + individual GET for each timer", async () => {
+  describe('getByChannel()', () => {
+    it('uses SMEMBERS + individual GET for each timer', async () => {
       mockRedis.smembers.mockResolvedValue([1, 2]);
       mockRedis.get
-        .mockResolvedValueOnce(JSON.stringify({
-          id: 1, guildId: "g", channelId: "ch", name: "T1",
-          intervalMinutes: 5, maxRepeat: null, triggerCount: 0,
-          startedAt: Date.now(), maxDurationMs: 7200000, startedBy: "u",
-        }))
-        .mockResolvedValueOnce(JSON.stringify({
-          id: 2, guildId: "g", channelId: "ch", name: "T2",
-          intervalMinutes: 10, maxRepeat: 3, triggerCount: 1,
-          startedAt: Date.now(), maxDurationMs: 7200000, startedBy: "u",
-        }));
+        .mockResolvedValueOnce(
+          JSON.stringify({
+            id: 1,
+            guildId: 'g',
+            channelId: 'ch',
+            name: 'T1',
+            intervalMinutes: 5,
+            maxRepeat: null,
+            triggerCount: 0,
+            startedAt: Date.now(),
+            maxDurationMs: 7200000,
+            startedBy: 'u',
+          })
+        )
+        .mockResolvedValueOnce(
+          JSON.stringify({
+            id: 2,
+            guildId: 'g',
+            channelId: 'ch',
+            name: 'T2',
+            intervalMinutes: 10,
+            maxRepeat: 3,
+            triggerCount: 1,
+            startedAt: Date.now(),
+            maxDurationMs: 7200000,
+            startedBy: 'u',
+          })
+        );
 
-      const result = await store.getByChannel("ch");
+      const result = await store.getByChannel('ch');
 
       expect(result).toHaveLength(2);
-      expect(result[0].name).toBe("T1");
-      expect(result[1].name).toBe("T2");
+      expect(result[0].name).toBe('T1');
+      expect(result[1].name).toBe('T2');
     });
   });
 
-  describe("channelCount()", () => {
-    it("uses SCARD", async () => {
+  describe('channelCount()', () => {
+    it('uses SCARD', async () => {
       mockRedis.scard.mockResolvedValue(3);
-      const count = await store.channelCount("channel-1");
+      const count = await store.channelCount('channel-1');
       expect(count).toBe(3);
-      expect(mockRedis.scard).toHaveBeenCalledWith("timer:channel:channel-1");
+      expect(mockRedis.scard).toHaveBeenCalledWith('timer:channel:channel-1');
     });
   });
 });

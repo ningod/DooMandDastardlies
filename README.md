@@ -94,6 +94,7 @@ DISCORD_CLIENT_ID=your-client-id-here
 DISCORD_GUILD_ID=your-test-guild-id    # optional, for dev
 MAX_TIMER_HOURS=2                      # optional, max timer runtime (1-24, default 2)
 STORAGE_BACKEND=memory                 # optional, "memory" (default) or "redis"
+INTERACTIONS_MODE=gateway              # optional, "gateway" (default) or "http"
 ```
 
 **Where to find these values:**
@@ -120,6 +121,31 @@ With Redis enabled:
 - Secret rolls survive restarts within their 10-minute TTL
 - Timer metadata persists (but timers are not auto-resumed — they are session-scoped)
 - Atomic reveal operations prevent race conditions across multiple instances
+
+### HTTP Interactions Mode (Optional)
+
+By default the bot uses **gateway mode** (WebSocket). You can switch to **HTTP mode** where Discord sends interactions as HTTP POST requests. This enables stateless scaling behind a load balancer and Fly.io auto-stop/auto-start for cost savings.
+
+1. Set `INTERACTIONS_MODE=http` in your `.env`.
+2. Set `DISCORD_PUBLIC_KEY` (from Discord Developer Portal → General Information → Public Key).
+3. In the Discord Developer Portal → General Information, set the **Interactions Endpoint URL** to `https://your-app.fly.dev/interactions`.
+
+```env
+INTERACTIONS_MODE=http
+DISCORD_PUBLIC_KEY=your-public-key-hex
+PORT=3000  # optional, default 3000
+```
+
+**When to use HTTP mode:**
+- You want machines to auto-stop when idle (cost savings)
+- You need horizontal scaling with multiple instances (requires Redis storage)
+- You're deploying behind Fly.io's load balancer
+
+**Caveats:**
+- Timers require a persistent process. Set `min_machines_running = 1` on Fly.io if using timers.
+- Memory storage doesn't work across multiple instances — use `STORAGE_BACKEND=redis` for multi-instance.
+
+See `fly.toml` for commented-out `[http_service]` configuration.
 
 ### 4. Register slash commands
 
@@ -243,7 +269,7 @@ Each trigger message includes a **Stop** button. When a timer completes (or reac
 
 ```
 src/
-  index.ts                 # Bot entry point
+  index.ts                 # Entry point — mode selector (gateway or http)
   deploy-commands.ts       # Slash command registration script
   commands/
     roll.ts                # /roll, /r, /secret, /s — shared handler
@@ -252,6 +278,12 @@ src/
   interactions/
     buttons.ts             # Reveal button handler
     timer-buttons.ts       # Timer Stop and Restart button handlers
+  modes/
+    gateway.ts             # Gateway mode — discord.js WebSocket client
+  http/
+    server.ts              # HTTP mode — Node.js HTTP server + routing
+    adapter.ts             # Discord interaction adapters (REST-backed)
+    verify.ts              # Ed25519 signature verification
   lib/
     dice.ts                # Dice expression parser (with labels) & roller
     store-interface.ts     # Async storage interfaces (IRollStore, ITimerStore)
@@ -271,6 +303,9 @@ tests/
   redis-roll-store.test.ts # Redis roll store tests (mocked)
   redis-timer-store.test.ts # Redis timer store tests (mocked)
   ratelimit.test.ts        # Rate limiter tests
+  http-verify.test.ts      # Ed25519 signature verification tests
+  http-adapter.test.ts     # HTTP adapter unit tests
+  http-server.test.ts      # HTTP server integration tests
 .claude/
   settings.json            # Shared Claude Code project settings
   rules/

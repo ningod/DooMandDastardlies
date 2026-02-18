@@ -1,14 +1,9 @@
-import {
-  ChatInputCommandInteraction,
-  SlashCommandBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-} from 'discord.js';
+import type { ChatInputCommandInteraction } from 'discord.js';
+import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { v4 as uuidv4 } from 'uuid';
 import { parseDice, rollDice, DiceParseError } from '../lib/dice.js';
-import { IRollStore } from '../lib/store-interface.js';
-import { RateLimiter } from '../lib/ratelimit.js';
+import type { IRollStore } from '../lib/store-interface.js';
+import type { RateLimiter } from '../lib/ratelimit.js';
 import {
   buildRollEmbed,
   buildErrorEmbed,

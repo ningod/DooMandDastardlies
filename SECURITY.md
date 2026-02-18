@@ -9,6 +9,15 @@ This document defines the security requirements and policies for the DooM & Dast
 - `.env` and `.env.*` files (except `.env.example`) are excluded from version control via `.gitignore`.
 - `.env.example` contains only placeholder values and variable names.
 
+## HTTP Mode — Signature Verification
+
+When running in HTTP interactions mode (`INTERACTIONS_MODE=http`), the bot verifies every incoming request using Ed25519 signatures per the [Discord HTTP interactions spec](https://discord.com/developers/docs/interactions/overview#setting-up-an-endpoint).
+
+- **`DISCORD_PUBLIC_KEY`** is required for HTTP mode. It is the application's public verification key from the Discord Developer Portal.
+- **`DISCORD_PUBLIC_KEY` is NOT a secret** — it is a public key used only for verification. It is safe to commit in `fly.toml` env or similar non-secret configuration.
+- Requests with missing or invalid signatures receive a `401 Unauthorized` response.
+- Signature verification uses Node.js native `crypto.subtle` (Ed25519) — no external cryptographic dependencies.
+
 ## Redis Credentials (Optional)
 
 When the optional Redis storage backend is enabled (`STORAGE_BACKEND=redis`), two additional secrets are required:

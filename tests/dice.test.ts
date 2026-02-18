@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parseDice, rollDice, canonicalize, DiceParseError, DieGroup } from '../src/lib/dice.js';
+import type { DieGroup } from '../src/lib/dice.js';
+import { parseDice, rollDice, canonicalize, DiceParseError } from '../src/lib/dice.js';
 
 // ---------------------------------------------------------------------------
 // parseDice — unlabeled (backward-compatible)

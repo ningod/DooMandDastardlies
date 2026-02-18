@@ -5,15 +5,15 @@
  * capped by MAX_TIMER_HOURS, and support optional repeat limits.
  */
 
-import {
+import type {
   ITimerStore,
   TimerInstance,
   TimerConfig,
   TimerCompleteReason,
-} from "./store-interface.js";
+} from './store-interface.js';
 
 // Re-export types so existing imports keep working
-export type { TimerInstance, TimerConfig, TimerCompleteReason } from "./store-interface.js";
+export type { TimerInstance, TimerConfig, TimerCompleteReason } from './store-interface.js';
 
 /** Maximum number of concurrent timers per channel. */
 const MAX_TIMERS_PER_CHANNEL = 5;
@@ -27,7 +27,7 @@ const MAX_REPEAT = 100;
 
 /** Timer name constraints. */
 const MAX_NAME_LENGTH = 50;
-const NAME_PATTERN = /^[\w\s\-]+$/;
+const NAME_PATTERN = /^[\w\s-]+$/;
 
 /** Default maximum duration: 2 hours. */
 const DEFAULT_MAX_TIMER_HOURS = 2;
@@ -36,7 +36,7 @@ const DEFAULT_MAX_TIMER_HOURS = 2;
 export class TimerParseError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "TimerParseError";
+    this.name = 'TimerParseError';
   }
 }
 
@@ -49,7 +49,7 @@ export class MemoryTimerStore implements ITimerStore {
     if (maxDurationMs !== undefined) {
       this.maxDurationMs = maxDurationMs;
     } else {
-      const envHours = parseInt(process.env.MAX_TIMER_HOURS ?? "", 10);
+      const envHours = parseInt(process.env.MAX_TIMER_HOURS ?? '', 10);
       const hours =
         Number.isFinite(envHours) && envHours >= 1 && envHours <= 24
           ? envHours
@@ -65,7 +65,7 @@ export class MemoryTimerStore implements ITimerStore {
   async validate(config: TimerConfig): Promise<void> {
     // Name checks
     if (!config.name || config.name.trim().length === 0) {
-      throw new TimerParseError("Timer name cannot be empty.");
+      throw new TimerParseError('Timer name cannot be empty.');
     }
     if (config.name.length > MAX_NAME_LENGTH) {
       throw new TimerParseError(
@@ -74,12 +74,15 @@ export class MemoryTimerStore implements ITimerStore {
     }
     if (!NAME_PATTERN.test(config.name)) {
       throw new TimerParseError(
-        "Timer name contains invalid characters. Use letters, numbers, spaces, underscores, or hyphens."
+        'Timer name contains invalid characters. Use letters, numbers, spaces, underscores, or hyphens.'
       );
     }
 
     // Interval checks
-    if (config.intervalMinutes < MIN_INTERVAL_MINUTES || config.intervalMinutes > MAX_INTERVAL_MINUTES) {
+    if (
+      config.intervalMinutes < MIN_INTERVAL_MINUTES ||
+      config.intervalMinutes > MAX_INTERVAL_MINUTES
+    ) {
       throw new TimerParseError(
         `Interval must be between ${MIN_INTERVAL_MINUTES} and ${MAX_INTERVAL_MINUTES} minutes.`
       );
@@ -88,9 +91,7 @@ export class MemoryTimerStore implements ITimerStore {
     // Repeat checks
     if (config.maxRepeat !== null) {
       if (config.maxRepeat < 1 || config.maxRepeat > MAX_REPEAT) {
-        throw new TimerParseError(
-          `Repeat count must be between 1 and ${MAX_REPEAT}.`
-        );
+        throw new TimerParseError(`Repeat count must be between 1 and ${MAX_REPEAT}.`);
       }
     }
 
@@ -114,7 +115,7 @@ export class MemoryTimerStore implements ITimerStore {
   async create(
     config: TimerConfig,
     onTrigger: (timer: TimerInstance) => void | Promise<void>,
-    onComplete: (timer: TimerInstance, reason: TimerCompleteReason) => void | Promise<void>,
+    onComplete: (timer: TimerInstance, reason: TimerCompleteReason) => void | Promise<void>
   ): Promise<TimerInstance> {
     await this.validate(config);
 
@@ -151,7 +152,7 @@ export class MemoryTimerStore implements ITimerStore {
         clearInterval(handle);
         this.timers.delete(id);
         void onTrigger(timer);
-        void onComplete(timer, "repeat-exhausted");
+        void onComplete(timer, 'repeat-exhausted');
         return;
       }
 
@@ -161,7 +162,7 @@ export class MemoryTimerStore implements ITimerStore {
         clearInterval(handle);
         this.timers.delete(id);
         void onTrigger(timer);
-        void onComplete(timer, "max-duration");
+        void onComplete(timer, 'max-duration');
         return;
       }
 

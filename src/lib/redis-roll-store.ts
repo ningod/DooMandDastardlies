@@ -1,11 +1,11 @@
-import { Redis } from "@upstash/redis";
-import { IRollStore, StoredRoll } from "./store-interface.js";
+import type { Redis } from '@upstash/redis';
+import type { IRollStore, StoredRoll } from './store-interface.js';
 
 /** Default TTL: 10 minutes in milliseconds. */
 const DEFAULT_TTL_MS = 10 * 60 * 1000;
 
 /** Redis key prefix for rolls. */
-const KEY_PREFIX = "roll:";
+const KEY_PREFIX = 'roll:';
 
 /**
  * Lua script for atomic get+delete (claim).
@@ -61,9 +61,9 @@ export class RedisRollStore implements IRollStore {
    */
   async claim(rollId: string): Promise<StoredRoll | null> {
     const key = KEY_PREFIX + rollId;
-    const raw = await this.redis.eval(CLAIM_SCRIPT, [key], []) as string | null;
+    const raw = await this.redis.eval(CLAIM_SCRIPT, [key], []);
     if (!raw) return null;
-    return parseStoredRoll(raw);
+    return parseStoredRoll(raw as string);
   }
 
   /** Delete a roll by ID. Returns true if it existed. */
@@ -89,7 +89,7 @@ function dateReplacer(_key: string, value: unknown): unknown {
 
 /** Parse a JSON string back into a StoredRoll, restoring Date fields. */
 function parseStoredRoll(raw: string): StoredRoll {
-  const data = typeof raw === "string" ? JSON.parse(raw) : raw;
+  const data = JSON.parse(raw) as StoredRoll;
   return {
     ...data,
     rolledAt: new Date(data.rolledAt),

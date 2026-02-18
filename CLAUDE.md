@@ -16,6 +16,7 @@ Discord dice roller bot for the **DooM & Dastardlies** TTRPG. The signature mech
 - **Comments replace reasons.** An optional `comment` string (max 120 chars) is shown in embeds. The old `reason` parameter no longer exists.
 - **Event timers.** `/timer start` creates recurring channel reminders. Timers auto-stop after `MAX_TIMER_HOURS` (default 2). Each trigger message has a Stop button; completion messages have a Restart button. Anyone in the channel can stop/restart timers (they're shared game resources).
 - **Storage backends.** `STORAGE_BACKEND` env selects `"memory"` (default) or `"redis"` (Upstash). Both implement the same async interfaces (`IRollStore`, `ITimerStore`). Memory requires no setup; Redis enables persistence across restarts.
+- **Interaction modes.** `INTERACTIONS_MODE` selects `"gateway"` (default, WebSocket via discord.js Client) or `"http"` (HTTP interactions endpoint with Ed25519 verification). Both modes share the same handlers via an adapter pattern. HTTP mode uses `@discordjs/rest` for outbound API calls.
 
 ## Commands
 
@@ -33,7 +34,7 @@ npm run deploy-commands  # Register slash commands with Discord
 
 ```
 src/
-  index.ts                 — Bot entry point, client setup, graceful shutdown
+  index.ts                 — Entry point, mode selector (gateway or http)
   deploy-commands.ts       — One-shot script to register all commands with Discord API
   commands/
     roll.ts                — /roll, /r, /secret, /s command definitions + shared handler
@@ -42,6 +43,12 @@ src/
   interactions/
     buttons.ts             — "Reveal Result" button handler
     timer-buttons.ts       — Timer Stop and Restart button handlers
+  modes/
+    gateway.ts             — Gateway mode: discord.js WebSocket client + event handlers
+  http/
+    server.ts              — HTTP mode: Node.js HTTP server + interaction routing
+    adapter.ts             — Adapters wrapping raw Discord JSON + REST for handler reuse
+    verify.ts              — Ed25519 signature verification (Node.js native crypto.subtle)
   lib/
     dice.ts                — Dice expression parser (with labels) + crypto-secure roller
     store-interface.ts     — Async storage interfaces (IRollStore, ITimerStore) + shared types
@@ -61,12 +68,15 @@ tests/
   redis-roll-store.test.ts — Redis roll store tests (mocked @upstash/redis)
   redis-timer-store.test.ts — Redis timer store tests (mocked @upstash/redis)
   ratelimit.test.ts        — Rate limiter tests
+  http-verify.test.ts      — Ed25519 signature verification tests
+  http-adapter.test.ts     — HTTP adapter unit tests (mocked REST)
+  http-server.test.ts      — HTTP server integration tests (real HTTP + real Ed25519 keys)
 ```
 
 ## Coding Standards
 
 - **Language:** TypeScript (strict mode) with Node.js 18+
-- **Module system:** CommonJS (`"type": "commonjs"` in package.json)
+- **Module system:** ESM (`"type": "module"` in package.json)
 - **Formatting:** 2-space indentation, Prettier defaults, trailing newlines
 - **Imports:** Use `.js` extensions in import paths (required for TypeScript ESM-compatible output)
 - **Error handling:** Custom error classes (e.g., `DiceParseError`) with user-friendly messages

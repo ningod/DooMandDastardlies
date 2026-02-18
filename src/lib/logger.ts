@@ -7,31 +7,31 @@
 export const logger = {
   info(event: string, meta?: Record<string, unknown>): void {
     const entry = {
-      level: "info",
+      level: 'info',
       event,
       ts: new Date().toISOString(),
       ...meta,
     };
-    process.stdout.write(JSON.stringify(entry) + "\n");
+    process.stdout.write(JSON.stringify(entry) + '\n');
   },
 
   warn(event: string, meta?: Record<string, unknown>): void {
     const entry = {
-      level: "warn",
+      level: 'warn',
       event,
       ts: new Date().toISOString(),
       ...meta,
     };
-    process.stderr.write(JSON.stringify(entry) + "\n");
+    process.stderr.write(JSON.stringify(entry) + '\n');
   },
 
   error(event: string, meta?: Record<string, unknown>): void {
     const entry = {
-      level: "error",
+      level: 'error',
       event,
       ts: new Date().toISOString(),
       ...meta,
     };
-    process.stderr.write(JSON.stringify(entry) + "\n");
+    process.stderr.write(JSON.stringify(entry) + '\n');
   },
 };

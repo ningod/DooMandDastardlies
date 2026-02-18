@@ -42,5 +42,8 @@ COPY --from=build /app/node_modules /app/node_modules
 COPY --from=build /app/package*.json /app/
 COPY --from=build /app/dist /app/dist
 
+# Expose HTTP port (used when INTERACTIONS_MODE=http)
+EXPOSE 3000
+
 # Start the server by default, this can be overwritten at runtime
 CMD [ "npm", "run", "start" ]

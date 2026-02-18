@@ -1,11 +1,11 @@
-import { Redis } from "@upstash/redis";
-import {
+import type { Redis } from '@upstash/redis';
+import type {
   ITimerStore,
   TimerInstance,
   TimerConfig,
   TimerCompleteReason,
-} from "./store-interface.js";
-import { TimerParseError } from "./timer-store.js";
+} from './store-interface.js';
+import { TimerParseError } from './timer-store.js';
 
 /** Maximum number of concurrent timers per channel. */
 const MAX_TIMERS_PER_CHANNEL = 5;
@@ -19,16 +19,16 @@ const MAX_REPEAT = 100;
 
 /** Timer name constraints. */
 const MAX_NAME_LENGTH = 50;
-const NAME_PATTERN = /^[\w\s\-]+$/;
+const NAME_PATTERN = /^[\w\s-]+$/;
 
 /** Default maximum duration: 2 hours. */
 const DEFAULT_MAX_TIMER_HOURS = 2;
 
 /** Redis key prefixes. */
-const TIMER_KEY = "timer:";
-const CHANNEL_KEY = "timer:channel:";
-const NEXT_ID_KEY = "timer:nextid";
-const STOP_FLAG_KEY = "timer:stop:";
+const TIMER_KEY = 'timer:';
+const CHANNEL_KEY = 'timer:channel:';
+const NEXT_ID_KEY = 'timer:nextid';
+const STOP_FLAG_KEY = 'timer:stop:';
 
 /** TTL for stop flags (60 seconds). */
 const STOP_FLAG_TTL_MS = 60_000;
@@ -66,7 +66,7 @@ export class RedisTimerStore implements ITimerStore {
     if (maxDurationMs !== undefined) {
       this.maxDurationMs = maxDurationMs;
     } else {
-      const envHours = parseInt(process.env.MAX_TIMER_HOURS ?? "", 10);
+      const envHours = parseInt(process.env.MAX_TIMER_HOURS ?? '', 10);
       const hours =
         Number.isFinite(envHours) && envHours >= 1 && envHours <= 24
           ? envHours
@@ -78,7 +78,7 @@ export class RedisTimerStore implements ITimerStore {
   /** Validate timer creation parameters. */
   async validate(config: TimerConfig): Promise<void> {
     if (!config.name || config.name.trim().length === 0) {
-      throw new TimerParseError("Timer name cannot be empty.");
+      throw new TimerParseError('Timer name cannot be empty.');
     }
     if (config.name.length > MAX_NAME_LENGTH) {
       throw new TimerParseError(
@@ -87,19 +87,20 @@ export class RedisTimerStore implements ITimerStore {
     }
     if (!NAME_PATTERN.test(config.name)) {
       throw new TimerParseError(
-        "Timer name contains invalid characters. Use letters, numbers, spaces, underscores, or hyphens."
+        'Timer name contains invalid characters. Use letters, numbers, spaces, underscores, or hyphens.'
       );
     }
-    if (config.intervalMinutes < MIN_INTERVAL_MINUTES || config.intervalMinutes > MAX_INTERVAL_MINUTES) {
+    if (
+      config.intervalMinutes < MIN_INTERVAL_MINUTES ||
+      config.intervalMinutes > MAX_INTERVAL_MINUTES
+    ) {
       throw new TimerParseError(
         `Interval must be between ${MIN_INTERVAL_MINUTES} and ${MAX_INTERVAL_MINUTES} minutes.`
       );
     }
     if (config.maxRepeat !== null) {
       if (config.maxRepeat < 1 || config.maxRepeat > MAX_REPEAT) {
-        throw new TimerParseError(
-          `Repeat count must be between 1 and ${MAX_REPEAT}.`
-        );
+        throw new TimerParseError(`Repeat count must be between 1 and ${MAX_REPEAT}.`);
       }
     }
 
@@ -115,7 +116,7 @@ export class RedisTimerStore implements ITimerStore {
   async create(
     config: TimerConfig,
     onTrigger: (timer: TimerInstance) => void | Promise<void>,
-    onComplete: (timer: TimerInstance, reason: TimerCompleteReason) => void | Promise<void>,
+    onComplete: (timer: TimerInstance, reason: TimerCompleteReason) => void | Promise<void>
   ): Promise<TimerInstance> {
     await this.validate(config);
 
@@ -156,46 +157,48 @@ export class RedisTimerStore implements ITimerStore {
     await this.redis.sadd(CHANNEL_KEY + config.channelId, id);
 
     // Local setInterval for triggering
-    const handle = setInterval(async () => {
-      // Check stop flag
-      const stopped = await this.redis.exists(STOP_FLAG_KEY + id);
-      if (stopped || !this.localTimers.has(id)) {
-        clearInterval(handle);
-        return;
-      }
+    const handle = setInterval(() => {
+      void (async () => {
+        // Check stop flag
+        const stopped = await this.redis.exists(STOP_FLAG_KEY + id);
+        if (stopped || !this.localTimers.has(id)) {
+          clearInterval(handle);
+          return;
+        }
 
-      timer.triggerCount++;
+        timer.triggerCount++;
 
-      // Update trigger count in Redis
-      const meta = await this.redis.get<string>(TIMER_KEY + id);
-      if (meta) {
-        const parsed: TimerMetadata = typeof meta === "string" ? JSON.parse(meta) : meta;
-        parsed.triggerCount = timer.triggerCount;
-        await this.redis.set(TIMER_KEY + id, JSON.stringify(parsed));
-      }
+        // Update trigger count in Redis
+        const meta = await this.redis.get<string>(TIMER_KEY + id);
+        if (meta) {
+          const parsed = JSON.parse(meta) as TimerMetadata;
+          parsed.triggerCount = timer.triggerCount;
+          await this.redis.set(TIMER_KEY + id, JSON.stringify(parsed));
+        }
 
-      // Check if repeat count is exhausted
-      if (timer.maxRepeat !== null && timer.triggerCount >= timer.maxRepeat) {
-        clearInterval(handle);
-        this.localTimers.delete(id);
-        await this.cleanupRedisKeys(id, timer.channelId);
+        // Check if repeat count is exhausted
+        if (timer.maxRepeat !== null && timer.triggerCount >= timer.maxRepeat) {
+          clearInterval(handle);
+          this.localTimers.delete(id);
+          await this.cleanupRedisKeys(id, timer.channelId);
+          void onTrigger(timer);
+          void onComplete(timer, 'repeat-exhausted');
+          return;
+        }
+
+        // Check if max duration will be exceeded by the next tick
+        const elapsed = Date.now() - timer.startedAt;
+        if (elapsed + intervalMs > maxDurationMs) {
+          clearInterval(handle);
+          this.localTimers.delete(id);
+          await this.cleanupRedisKeys(id, timer.channelId);
+          void onTrigger(timer);
+          void onComplete(timer, 'max-duration');
+          return;
+        }
+
         void onTrigger(timer);
-        void onComplete(timer, "repeat-exhausted");
-        return;
-      }
-
-      // Check if max duration will be exceeded by the next tick
-      const elapsed = Date.now() - timer.startedAt;
-      if (elapsed + intervalMs > maxDurationMs) {
-        clearInterval(handle);
-        this.localTimers.delete(id);
-        await this.cleanupRedisKeys(id, timer.channelId);
-        void onTrigger(timer);
-        void onComplete(timer, "max-duration");
-        return;
-      }
-
-      void onTrigger(timer);
+      })();
     }, intervalMs);
 
     timer.intervalHandle = handle;
@@ -211,8 +214,8 @@ export class RedisTimerStore implements ITimerStore {
       // May exist in Redis but not locally (different instance) — try to stop via flag
       const meta = await this.redis.get<string>(TIMER_KEY + timerId);
       if (meta) {
-        const parsed: TimerMetadata = typeof meta === "string" ? JSON.parse(meta) : meta;
-        await this.redis.set(STOP_FLAG_KEY + timerId, "1", { px: STOP_FLAG_TTL_MS });
+        const parsed = JSON.parse(meta) as TimerMetadata;
+        await this.redis.set(STOP_FLAG_KEY + timerId, '1', { px: STOP_FLAG_TTL_MS });
         await this.cleanupRedisKeys(timerId, parsed.channelId);
         return metadataToInstance(parsed);
       }
@@ -221,7 +224,7 @@ export class RedisTimerStore implements ITimerStore {
 
     clearInterval(timer.intervalHandle);
     this.localTimers.delete(timerId);
-    await this.redis.set(STOP_FLAG_KEY + timerId, "1", { px: STOP_FLAG_TTL_MS });
+    await this.redis.set(STOP_FLAG_KEY + timerId, '1', { px: STOP_FLAG_TTL_MS });
     await this.cleanupRedisKeys(timerId, timer.channelId);
     return timer;
   }
@@ -232,7 +235,7 @@ export class RedisTimerStore implements ITimerStore {
     let count = 0;
 
     for (const memberRaw of members) {
-      const id = typeof memberRaw === "number" ? memberRaw : parseInt(String(memberRaw), 10);
+      const id = typeof memberRaw === 'number' ? memberRaw : parseInt(memberRaw, 10);
       if (Number.isNaN(id)) continue;
 
       const local = this.localTimers.get(id);
@@ -241,7 +244,7 @@ export class RedisTimerStore implements ITimerStore {
         this.localTimers.delete(id);
       }
 
-      await this.redis.set(STOP_FLAG_KEY + id, "1", { px: STOP_FLAG_TTL_MS });
+      await this.redis.set(STOP_FLAG_KEY + id, '1', { px: STOP_FLAG_TTL_MS });
       await this.redis.del(TIMER_KEY + id);
       count++;
     }
@@ -254,7 +257,7 @@ export class RedisTimerStore implements ITimerStore {
   async stopAll(): Promise<void> {
     for (const [id, timer] of this.localTimers) {
       clearInterval(timer.intervalHandle);
-      await this.redis.set(STOP_FLAG_KEY + id, "1", { px: STOP_FLAG_TTL_MS });
+      await this.redis.set(STOP_FLAG_KEY + id, '1', { px: STOP_FLAG_TTL_MS });
       await this.cleanupRedisKeys(id, timer.channelId);
     }
     this.localTimers.clear();
@@ -267,7 +270,7 @@ export class RedisTimerStore implements ITimerStore {
 
     const meta = await this.redis.get<string>(TIMER_KEY + timerId);
     if (!meta) return null;
-    const parsed: TimerMetadata = typeof meta === "string" ? JSON.parse(meta) : meta;
+    const parsed = JSON.parse(meta) as TimerMetadata;
     return metadataToInstance(parsed);
   }
 
@@ -277,7 +280,7 @@ export class RedisTimerStore implements ITimerStore {
     const result: TimerInstance[] = [];
 
     for (const memberRaw of members) {
-      const id = typeof memberRaw === "number" ? memberRaw : parseInt(String(memberRaw), 10);
+      const id = typeof memberRaw === 'number' ? memberRaw : parseInt(memberRaw, 10);
       if (Number.isNaN(id)) continue;
 
       const local = this.localTimers.get(id);
@@ -288,7 +291,7 @@ export class RedisTimerStore implements ITimerStore {
 
       const meta = await this.redis.get<string>(TIMER_KEY + id);
       if (meta) {
-        const parsed: TimerMetadata = typeof meta === "string" ? JSON.parse(meta) : meta;
+        const parsed = JSON.parse(meta) as TimerMetadata;
         result.push(metadataToInstance(parsed));
       }
     }

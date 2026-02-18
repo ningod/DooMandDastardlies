@@ -1,4 +1,4 @@
-import { RollResult } from "./dice.js";
+import type { RollResult } from './dice.js';
 
 // ---------------------------------------------------------------------------
 // Shared data types (owned here, re-exported from original modules)
@@ -17,7 +17,7 @@ export interface StoredRoll {
 }
 
 /** Completion reason for the onComplete callback. */
-export type TimerCompleteReason = "repeat-exhausted" | "max-duration";
+export type TimerCompleteReason = 'repeat-exhausted' | 'max-duration';
 
 /** A running timer instance. */
 export interface TimerInstance {
@@ -100,7 +100,7 @@ export interface ITimerStore {
   create(
     config: TimerConfig,
     onTrigger: (timer: TimerInstance) => void | Promise<void>,
-    onComplete: (timer: TimerInstance, reason: TimerCompleteReason) => void | Promise<void>,
+    onComplete: (timer: TimerInstance, reason: TimerCompleteReason) => void | Promise<void>
   ): Promise<TimerInstance>;
 
   /** Stop and remove a specific timer. Returns the stopped timer or null. */

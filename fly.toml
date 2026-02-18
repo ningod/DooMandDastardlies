@@ -12,8 +12,28 @@ primary_region = 'ams'
   release_command = "npm run deploy-commands"
 
 [env]
+  INTERACTIONS_MODE = "gateway"
   MAX_TIMER_HOURS = 2
   STORAGE_BACKEND = "memory"
+
+# --- HTTP mode configuration (uncomment when using INTERACTIONS_MODE=http) ---
+# Set INTERACTIONS_MODE = "http" above, then uncomment the [http_service] block.
+# You will also need to set these secrets:
+#   fly secrets set DISCORD_PUBLIC_KEY=<your-public-key-hex>
+#
+# [http_service]
+#   internal_port = 3000
+#   force_https = true
+#   auto_stop_machines = "stop"
+#   auto_start_machines = true
+#   min_machines_running = 1
+#
+#   [[http_service.checks]]
+#     grace_period = "10s"
+#     interval = "30s"
+#     method = "GET"
+#     timeout = "5s"
+#     path = "/health"
 
 [[vm]]
   memory = '256mb'

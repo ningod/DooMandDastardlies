@@ -1,28 +1,17 @@
-import {
-  ChatInputCommandInteraction,
-  SlashCommandBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  MessageFlags,
-  TextChannel,
-} from "discord.js";
-import { TimerParseError } from "../lib/timer-store.js";
-import {
-  ITimerStore,
-  TimerInstance,
-  TimerCompleteReason,
-} from "../lib/store-interface.js";
-import { RateLimiter } from "../lib/ratelimit.js";
+import type { ChatInputCommandInteraction, TextChannel } from 'discord.js';
+import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { TimerParseError } from '../lib/timer-store.js';
+import type { ITimerStore, TimerInstance, TimerCompleteReason } from '../lib/store-interface.js';
+import type { RateLimiter } from '../lib/ratelimit.js';
 import {
   buildTimerTriggerEmbed,
   buildTimerCompleteEmbed,
   buildTimerStartedEmbed,
   buildTimerStoppedEmbed,
   buildTimerListEmbed,
-} from "../lib/timer-embeds.js";
-import { buildErrorEmbed } from "../lib/embeds.js";
-import { logger } from "../lib/logger.js";
+} from '../lib/timer-embeds.js';
+import { buildErrorEmbed } from '../lib/embeds.js';
+import { logger } from '../lib/logger.js';
 
 // ---------------------------------------------------------------------------
 // Mention suppression for timer names (same pattern as roll.ts)
@@ -31,11 +20,11 @@ import { logger } from "../lib/logger.js";
 /** Strip @everyone, @here, and <@...> mention patterns from user input. */
 function sanitizeName(raw: string): string {
   return raw
-    .replace(/@everyone/gi, "@\u200Beveryone")
-    .replace(/@here/gi, "@\u200Bhere")
-    .replace(/<@[!&]?\d+>/g, "[mention]")
-    .replace(/<#\d+>/g, "[channel]")
-    .replace(/<@&\d+>/g, "[role]");
+    .replace(/@everyone/gi, '@\u200Beveryone')
+    .replace(/@here/gi, '@\u200Bhere')
+    .replace(/<@[!&]?\d+>/g, '[mention]')
+    .replace(/<#\d+>/g, '[channel]')
+    .replace(/<@&\d+>/g, '[role]');
 }
 
 // ---------------------------------------------------------------------------
@@ -50,8 +39,8 @@ export function buildStopButton(timerId: number): ActionRowBuilder<ButtonBuilder
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`tstop:${timerId}`)
-      .setLabel("Stop")
-      .setStyle(ButtonStyle.Secondary),
+      .setLabel('Stop')
+      .setStyle(ButtonStyle.Secondary)
   );
 }
 
@@ -64,9 +53,9 @@ export function buildRestartButton(timer: TimerInstance): ActionRowBuilder<Butto
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(customId)
-      .setLabel("Restart")
+      .setLabel('Restart')
       .setStyle(ButtonStyle.Primary)
-      .setEmoji("🔄"),
+      .setEmoji('🔄')
   );
 }
 
@@ -76,57 +65,54 @@ export function buildRestartButton(timer: TimerInstance): ActionRowBuilder<Butto
 
 /** /timer command with start, stop, list subcommands. */
 export const timerCommandData = new SlashCommandBuilder()
-  .setName("timer")
-  .setDescription("Manage event timers for your session")
+  .setName('timer')
+  .setDescription('Manage event timers for your session')
   .addSubcommand((sub) =>
     sub
-      .setName("start")
-      .setDescription("Start a recurring event timer")
+      .setName('start')
+      .setDescription('Start a recurring event timer')
       .addIntegerOption((opt) =>
         opt
-          .setName("interval")
-          .setDescription("Interval in minutes between triggers")
+          .setName('interval')
+          .setDescription('Interval in minutes between triggers')
           .setRequired(true)
           .setMinValue(1)
-          .setMaxValue(480),
+          .setMaxValue(480)
       )
       .addStringOption((opt) =>
         opt
-          .setName("name")
-          .setDescription("Name for this timer event (max 50 characters)")
-          .setRequired(true),
+          .setName('name')
+          .setDescription('Name for this timer event (max 50 characters)')
+          .setRequired(true)
       )
       .addIntegerOption((opt) =>
         opt
-          .setName("repeat")
+          .setName('repeat')
           .setDescription(
-            "Number of times to trigger (omit for indefinite, capped by max duration)",
+            'Number of times to trigger (omit for indefinite, capped by max duration)'
           )
           .setRequired(false)
           .setMinValue(1)
-          .setMaxValue(100),
-      ),
+          .setMaxValue(100)
+      )
   )
   .addSubcommand((sub) =>
     sub
-      .setName("stop")
-      .setDescription("Stop a running timer")
+      .setName('stop')
+      .setDescription('Stop a running timer')
       .addIntegerOption((opt) =>
         opt
-          .setName("timer_id")
-          .setDescription("ID of the timer to stop")
+          .setName('timer_id')
+          .setDescription('ID of the timer to stop')
           .setRequired(false)
-          .setMinValue(1),
+          .setMinValue(1)
       )
       .addBooleanOption((opt) =>
-        opt
-          .setName("all")
-          .setDescription("Stop all timers in this channel")
-          .setRequired(false),
-      ),
+        opt.setName('all').setDescription('Stop all timers in this channel').setRequired(false)
+      )
   )
   .addSubcommand((sub) =>
-    sub.setName("list").setDescription("List all active timers in this channel"),
+    sub.setName('list').setDescription('List all active timers in this channel')
   );
 
 // ---------------------------------------------------------------------------
@@ -137,18 +123,18 @@ export const timerCommandData = new SlashCommandBuilder()
 export async function handleTimerCommand(
   interaction: ChatInputCommandInteraction,
   timerStore: ITimerStore,
-  limiter: RateLimiter,
+  limiter: RateLimiter
 ): Promise<void> {
   const subcommand = interaction.options.getSubcommand();
 
   switch (subcommand) {
-    case "start":
+    case 'start':
       await handleTimerStart(interaction, timerStore, limiter);
       break;
-    case "stop":
+    case 'stop':
       await handleTimerStop(interaction, timerStore);
       break;
-    case "list":
+    case 'list':
       await handleTimerList(interaction, timerStore);
       break;
   }
@@ -161,7 +147,7 @@ export async function handleTimerCommand(
 async function handleTimerStart(
   interaction: ChatInputCommandInteraction,
   timerStore: ITimerStore,
-  limiter: RateLimiter,
+  limiter: RateLimiter
 ): Promise<void> {
   const userId = interaction.user.id;
 
@@ -171,31 +157,31 @@ async function handleTimerStart(
     await interaction.editReply({
       embeds: [
         buildErrorEmbed(
-          `You're acting too fast! Please wait **${retryAfter}** second(s) before trying again.`,
+          `You're acting too fast! Please wait **${retryAfter}** second(s) before trying again.`
         ),
       ],
     });
     return;
   }
 
-  const intervalMinutes = interaction.options.getInteger("interval", true);
-  const rawName = interaction.options.getString("name", true);
-  const repeat = interaction.options.getInteger("repeat") ?? null;
+  const intervalMinutes = interaction.options.getInteger('interval', true);
+  const rawName = interaction.options.getString('name', true);
+  const repeat = interaction.options.getInteger('repeat') ?? null;
 
   const name = sanitizeName(rawName.trim());
 
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.editReply({
-      embeds: [buildErrorEmbed("Timers can only be used in a server (guild).")],
+      embeds: [buildErrorEmbed('Timers can only be used in a server (guild).')],
     });
     return;
   }
 
   const channel = interaction.channel;
-  if (!channel || !("send" in channel)) {
+  if (!channel || !('send' in channel)) {
     await interaction.editReply({
-      embeds: [buildErrorEmbed("Unable to send timer messages in this channel.")],
+      embeds: [buildErrorEmbed('Unable to send timer messages in this channel.')],
     });
     return;
   }
@@ -215,18 +201,17 @@ async function handleTimerStart(
       // onTrigger — channel is verified to have send() above
       (t) => sendTriggerMessage(channel as TextChannel, t),
       // onComplete
-      (t, reason) => sendCompleteMessage(channel as TextChannel, t, reason),
+      (t, reason) => sendCompleteMessage(channel as TextChannel, t, reason)
     );
   } catch (err) {
-    const message =
-      err instanceof TimerParseError ? err.message : "Failed to create timer.";
+    const message = err instanceof TimerParseError ? err.message : 'Failed to create timer.';
     await interaction.editReply({
       embeds: [buildErrorEmbed(message)],
     });
     return;
   }
 
-  logger.info("timer-created", {
+  logger.info('timer-created', {
     timerId: timer.id,
     channelId: interaction.channelId,
     guildId,
@@ -252,10 +237,7 @@ async function handleTimerStart(
 // Timer message senders (used as callbacks)
 // ---------------------------------------------------------------------------
 
-async function sendTriggerMessage(
-  channel: TextChannel,
-  timer: TimerInstance,
-): Promise<void> {
+async function sendTriggerMessage(channel: TextChannel, timer: TimerInstance): Promise<void> {
   try {
     const embed = buildTimerTriggerEmbed({
       timerId: timer.id,
@@ -269,7 +251,7 @@ async function sendTriggerMessage(
 
     await channel.send({ embeds: [embed], components: [row] });
   } catch (err) {
-    logger.error("timer-trigger-send-failed", {
+    logger.error('timer-trigger-send-failed', {
       timerId: timer.id,
       channelId: timer.channelId,
       error: err instanceof Error ? err.message : String(err),
@@ -280,7 +262,7 @@ async function sendTriggerMessage(
 async function sendCompleteMessage(
   channel: TextChannel,
   timer: TimerInstance,
-  reason: TimerCompleteReason,
+  reason: TimerCompleteReason
 ): Promise<void> {
   try {
     const embed = buildTimerCompleteEmbed({
@@ -294,14 +276,14 @@ async function sendCompleteMessage(
 
     await channel.send({ embeds: [embed], components: [row] });
 
-    logger.info("timer-completed", {
+    logger.info('timer-completed', {
       timerId: timer.id,
       channelId: timer.channelId,
       reason,
       triggerCount: timer.triggerCount,
     });
   } catch (err) {
-    logger.error("timer-complete-send-failed", {
+    logger.error('timer-complete-send-failed', {
       timerId: timer.id,
       channelId: timer.channelId,
       error: err instanceof Error ? err.message : String(err),
@@ -315,17 +297,17 @@ async function sendCompleteMessage(
 
 async function handleTimerStop(
   interaction: ChatInputCommandInteraction,
-  timerStore: ITimerStore,
+  timerStore: ITimerStore
 ): Promise<void> {
-  const timerId = interaction.options.getInteger("timer_id") ?? null;
-  const all = interaction.options.getBoolean("all") ?? false;
+  const timerId = interaction.options.getInteger('timer_id') ?? null;
+  const all = interaction.options.getBoolean('all') ?? false;
 
   if (timerId === null && !all) {
     await interaction.editReply({
       embeds: [
         buildErrorEmbed(
-          "Please specify `timer_id` to stop a specific timer, or `all:true` to stop all timers in this channel.\n\n" +
-            "Use `/timer list` to see active timers and their IDs.",
+          'Please specify `timer_id` to stop a specific timer, or `all:true` to stop all timers in this channel.\n\n' +
+            'Use `/timer list` to see active timers and their IDs.'
         ),
       ],
     });
@@ -335,7 +317,7 @@ async function handleTimerStop(
   if (all) {
     const count = await timerStore.stopAllInChannel(interaction.channelId);
 
-    logger.info("timer-stop-all", {
+    logger.info('timer-stop-all', {
       channelId: interaction.channelId,
       userId: interaction.user.id,
       count,
@@ -343,14 +325,14 @@ async function handleTimerStop(
 
     if (count === 0) {
       await interaction.editReply({
-        embeds: [buildErrorEmbed("No active timers in this channel.")],
+        embeds: [buildErrorEmbed('No active timers in this channel.')],
       });
     } else {
       await interaction.editReply({
         embeds: [
           buildTimerStoppedEmbed({
             timerId: 0,
-            name: `${count} timer${count !== 1 ? "s" : ""}`,
+            name: `${count} timer${count !== 1 ? 's' : ''}`,
           }),
         ],
       });
@@ -358,13 +340,15 @@ async function handleTimerStop(
     return;
   }
 
-  // Stop specific timer
-  const timer = await timerStore.get(timerId!);
+  // Stop specific timer — timerId is non-null here: the null+!all case returned early
+  if (timerId === null) return;
+
+  const timer = await timerStore.get(timerId);
   if (!timer) {
     await interaction.editReply({
       embeds: [
         buildErrorEmbed(
-          `Timer #${timerId} was not found. It may have already completed or been stopped.`,
+          `Timer #${timerId} was not found. It may have already completed or been stopped.`
         ),
       ],
     });
@@ -376,16 +360,16 @@ async function handleTimerStop(
     await interaction.editReply({
       embeds: [
         buildErrorEmbed(
-          "That timer belongs to a different channel and cannot be stopped from here.",
+          'That timer belongs to a different channel and cannot be stopped from here.'
         ),
       ],
     });
     return;
   }
 
-  await timerStore.stop(timerId!);
+  await timerStore.stop(timerId);
 
-  logger.info("timer-stopped", {
+  logger.info('timer-stopped', {
     timerId,
     channelId: interaction.channelId,
     userId: interaction.user.id,
@@ -403,7 +387,7 @@ async function handleTimerStop(
 
 async function handleTimerList(
   interaction: ChatInputCommandInteraction,
-  timerStore: ITimerStore,
+  timerStore: ITimerStore
 ): Promise<void> {
   const timers = await timerStore.getByChannel(interaction.channelId);
   const embed = buildTimerListEmbed(timers);

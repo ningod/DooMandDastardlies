@@ -1,7 +1,7 @@
-import { IRollStore, StoredRoll } from "./store-interface.js";
+import type { IRollStore, StoredRoll } from './store-interface.js';
 
 // Re-export StoredRoll so existing imports keep working
-export type { StoredRoll } from "./store-interface.js";
+export type { StoredRoll } from './store-interface.js';
 
 /** Default TTL: 10 minutes in milliseconds. */
 const DEFAULT_TTL_MS = 10 * 60 * 1000;
@@ -27,11 +27,11 @@ export class MemoryRollStore implements IRollStore {
   /** Start the periodic cleanup timer. Call once at bot startup. */
   start(): void {
     if (this.cleanupTimer) return;
-    this.cleanupTimer = setInterval(() => this.sweep(), CLEANUP_INTERVAL_MS);
+    this.cleanupTimer = setInterval(() => {
+      this.sweep();
+    }, CLEANUP_INTERVAL_MS);
     // Allow the process to exit even if the timer is running.
-    if (this.cleanupTimer.unref) {
-      this.cleanupTimer.unref();
-    }
+    this.cleanupTimer.unref();
   }
 
   /** Stop the periodic cleanup timer. */

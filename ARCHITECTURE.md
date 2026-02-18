@@ -1,5 +1,40 @@
 # Architecture
 
+## Interaction Modes
+
+The bot supports two operational modes, selected via `INTERACTIONS_MODE` (default: `gateway`):
+
+```
+                        ┌──────────────┐
+                        │  Discord API │
+                        └──────┬───────┘
+                               │
+                 ┌─────────────┴──────────────┐
+                 │                            │
+     INTERACTIONS_MODE=gateway     INTERACTIONS_MODE=http
+                 │                            │
+     ┌───────────┴──────────┐    ┌────────────┴──────────┐
+     │ modes/gateway.ts     │    │ http/server.ts         │
+     │ discord.js Client    │    │ Node.js HTTP server    │
+     │ WebSocket connection │    │ Ed25519 verification   │
+     │ Event-driven         │    │ Deferred responses     │
+     └───────────┬──────────┘    │ REST API for replies   │
+                 │               └────────────┬──────────┘
+                 │                            │
+                 └──────────┬─────────────────┘
+                            │
+                   Shared handlers:
+                   commands/roll.ts
+                   commands/timer.ts
+                   commands/help.ts
+                   interactions/buttons.ts
+                   interactions/timer-buttons.ts
+```
+
+**Gateway mode** (default): discord.js `Client` connects via WebSocket and receives interactions as real-time events. Defer + reply using discord.js methods.
+
+**HTTP mode**: A Node.js `http.createServer()` listens for Discord POST requests. Each request is signature-verified, immediately deferred via HTTP response, then processed asynchronously using `@discordjs/rest` for follow-up API calls. Adapter objects (`src/http/adapter.ts`) wrap raw JSON + REST client to match the discord.js API surface that handlers expect, enabling handler reuse without modification.
+
 ## High-Level Component Diagram
 
 ```
@@ -221,6 +256,7 @@ TimerInstance {
 - Individual `setInterval` per timer (start/stop per-timer is trivial)
 - With Redis: metadata persists, but timers are NOT auto-resumed on restart (session-scoped scheduling)
 - Button customId encoding: `tstop:<id>`, `trestart:<id>:<interval>:<repeat>:<name>`
+- **HTTP mode constraint:** Timers use `setInterval` which requires a persistent process. In HTTP mode on Fly.io, set `min_machines_running = 1` to keep at least one machine alive for timer callbacks. If the machine restarts, active timers are lost (same as gateway mode).
 
 ## Storage Abstraction
 

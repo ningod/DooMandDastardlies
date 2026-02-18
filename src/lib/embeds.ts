@@ -1,7 +1,7 @@
-import { EmbedBuilder, Colors } from "discord.js";
-import { RollResult, DieGroupResult } from "./dice.js";
+import { EmbedBuilder, Colors } from 'discord.js';
+import type { RollResult, DieGroupResult } from './dice.js';
 
-const TITLE = "DooM & Dastardlies — Dice Roll";
+const TITLE = 'DooM & Dastardlies — Dice Roll';
 
 /** Maximum comment length allowed in embeds. */
 export const MAX_COMMENT_LENGTH = 120;
@@ -12,9 +12,9 @@ export const MAX_COMMENT_LENGTH = 120;
  */
 function formatGroupResult(gr: DieGroupResult): string {
   const dice = `${gr.group.count}d${gr.group.sides}`;
-  const values = gr.rolls.map((r) => `**${r}**`).join(", ");
+  const values = gr.rolls.map((r) => `**${r}**`).join(', ');
   const subtotal = gr.rolls.reduce((a, b) => a + b, 0);
-  const prefix = gr.group.label ? `**${gr.group.label}** — ` : "";
+  const prefix = gr.group.label ? `**${gr.group.label}** — ` : '';
   return `${prefix}${dice}: [${values}] = ${subtotal}`;
 }
 
@@ -42,25 +42,25 @@ export function buildRollEmbed(opts: {
     .setTimestamp();
 
   // Dice expression
-  embed.addFields({ name: "Dice", value: `\`${result.expression}\``, inline: true });
-  embed.addFields({ name: "Roller", value: `<@${rollerId}>`, inline: true });
+  embed.addFields({ name: 'Dice', value: `\`${result.expression}\``, inline: true });
+  embed.addFields({ name: 'Roller', value: `<@${rollerId}>`, inline: true });
 
   // Comment (optional)
   if (comment) {
-    embed.addFields({ name: "Comment", value: comment });
+    embed.addFields({ name: 'Comment', value: comment });
   }
 
   // Individual results per group (with labels and subtotals)
   const resultsLines = result.groups.map(formatGroupResult);
-  embed.addFields({ name: "Results", value: resultsLines.join("\n") });
+  embed.addFields({ name: 'Results', value: resultsLines.join('\n') });
 
   // Total
-  embed.addFields({ name: "Total", value: `**${result.total}**`, inline: true });
+  embed.addFields({ name: 'Total', value: `**${result.total}**`, inline: true });
 
   if (isRevealed) {
     embed.setFooter({ text: `Revealed` });
   } else {
-    embed.setFooter({ text: "Secret roll — only you can see this" });
+    embed.setFooter({ text: 'Secret roll — only you can see this' });
   }
 
   return embed;
@@ -81,19 +81,16 @@ export function buildSecretRollAnnouncementEmbed(opts: {
 }): EmbedBuilder {
   const { expression, comment, rollerId } = opts;
 
-  const embed = new EmbedBuilder()
-    .setTitle("Secret Roll")
-    .setColor(Colors.DarkGold)
-    .setTimestamp();
+  const embed = new EmbedBuilder().setTitle('Secret Roll').setColor(Colors.DarkGold).setTimestamp();
 
-  embed.addFields({ name: "Dice", value: `\`${expression}\``, inline: true });
-  embed.addFields({ name: "Roller", value: `<@${rollerId}>`, inline: true });
+  embed.addFields({ name: 'Dice', value: `\`${expression}\``, inline: true });
+  embed.addFields({ name: 'Roller', value: `<@${rollerId}>`, inline: true });
 
   if (comment) {
-    embed.addFields({ name: "Comment", value: comment });
+    embed.addFields({ name: 'Comment', value: comment });
   }
 
-  embed.setDescription("🎲 Result is hidden until revealed.");
+  embed.setDescription('🎲 Result is hidden until revealed.');
 
   return embed;
 }
@@ -119,26 +116,23 @@ export function buildRevealEmbed(opts: {
 }): EmbedBuilder {
   const { result, comment, rollerId, revealerTag } = opts;
 
-  const embed = new EmbedBuilder()
-    .setTitle(TITLE)
-    .setColor(Colors.Green)
-    .setTimestamp();
+  const embed = new EmbedBuilder().setTitle(TITLE).setColor(Colors.Green).setTimestamp();
 
   // Dice expression
-  embed.addFields({ name: "Dice", value: `\`${result.expression}\``, inline: true });
-  embed.addFields({ name: "Roller", value: `<@${rollerId}>`, inline: true });
+  embed.addFields({ name: 'Dice', value: `\`${result.expression}\``, inline: true });
+  embed.addFields({ name: 'Roller', value: `<@${rollerId}>`, inline: true });
 
   // Comment (optional)
   if (comment) {
-    embed.addFields({ name: "Comment", value: comment });
+    embed.addFields({ name: 'Comment', value: comment });
   }
 
   // Individual results per group (with labels and subtotals)
   const resultsLines = result.groups.map(formatGroupResult);
-  embed.addFields({ name: "Results", value: resultsLines.join("\n") });
+  embed.addFields({ name: 'Results', value: resultsLines.join('\n') });
 
   // Total
-  embed.addFields({ name: "Total", value: `**${result.total}**`, inline: true });
+  embed.addFields({ name: 'Total', value: `**${result.total}**`, inline: true });
 
   // Revealer
   embed.setFooter({ text: `Revealed by ${revealerTag}` });
@@ -153,7 +147,7 @@ export function buildRevealEmbed(opts: {
  */
 export function buildErrorEmbed(message: string): EmbedBuilder {
   return new EmbedBuilder()
-    .setTitle("DooM & Dastardlies — Error")
+    .setTitle('DooM & Dastardlies — Error')
     .setColor(Colors.Red)
     .setDescription(message)
     .setTimestamp();

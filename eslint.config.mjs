@@ -10,7 +10,10 @@ export default tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        projectService: {
+          allowDefaultProject: ['tests/*.test.ts'],
+          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 20,
+        },
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -41,6 +44,36 @@ export default tseslint.config(
 
       // Allow console (we have a proper logger, but console for startup is ok)
       'no-console': 'off',
+
+      // Allow numbers in template literals
+      '@typescript-eslint/restrict-template-expressions': ['error', {
+        allowNumber: true,
+      }],
+
+      // Allow empty methods (interface compliance)
+      '@typescript-eslint/no-empty-function': ['error', {
+        allow: ['methods'],
+      }],
+
+      // Allow async methods without await (interface compliance)
+      '@typescript-eslint/require-await': 'off',
+
+      // Allow string + number in concatenation (Redis key building)
+      '@typescript-eslint/restrict-plus-operands': ['error', {
+        allowNumberAndString: true,
+      }],
+    },
+  },
+  // Relax strict rules for test files (mocks involve `any`, assertions use `!`)
+  {
+    files: ['tests/**/*.test.ts'],
+    rules: {
+      '@typescript-eslint/no-non-null-assertion': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
     },
   },
   {

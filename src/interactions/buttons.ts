@@ -1,8 +1,6 @@
-import {
-  ButtonInteraction,
-  MessageFlags,
-} from 'discord.js';
-import { IRollStore } from '../lib/store-interface.js';
+import type { ButtonInteraction } from 'discord.js';
+import { MessageFlags } from 'discord.js';
+import type { IRollStore } from '../lib/store-interface.js';
 import { buildRollEmbed, buildErrorEmbed, buildRevealEmbed } from '../lib/embeds.js';
 import { logger } from '../lib/logger.js';
 
@@ -11,7 +9,10 @@ import { logger } from '../lib/logger.js';
  *
  * Custom IDs follow the pattern: "reveal:<rollId>"
  */
-export async function handleButton(interaction: ButtonInteraction, store: IRollStore): Promise<void> {
+export async function handleButton(
+  interaction: ButtonInteraction,
+  store: IRollStore
+): Promise<void> {
   const customId = interaction.customId;
 
   if (!customId.startsWith('reveal:')) {
@@ -94,7 +95,7 @@ export async function handleButton(interaction: ButtonInteraction, store: IRollS
   const channel = interaction.channel;
   if (!channel || !('send' in channel)) {
     await interaction.followUp({
-      embeds: [buildErrorEmbed("Unable to send messages in this channel.")],
+      embeds: [buildErrorEmbed('Unable to send messages in this channel.')],
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -158,9 +159,7 @@ export async function handleButton(interaction: ButtonInteraction, store: IRollS
     });
     await interaction.followUp({
       embeds: [
-        buildErrorEmbed(
-          'Failed to reveal the roll. The original message may have been deleted.'
-        ),
+        buildErrorEmbed('Failed to reveal the roll. The original message may have been deleted.'),
       ],
       flags: MessageFlags.Ephemeral,
     });

@@ -1,4 +1,5 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder, EmbedBuilder, Colors } from 'discord.js';
+import type { ChatInputCommandInteraction } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder, Colors } from 'discord.js';
 
 /** /help command definition. */
 export const helpCommandData = new SlashCommandBuilder()
