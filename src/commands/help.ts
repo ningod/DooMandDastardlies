@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { SlashCommandBuilder, EmbedBuilder, Colors } from 'discord.js';
+import { config } from '../lib/config.js';
 
 /** /help command definition. */
 export const helpCommandData = new SlashCommandBuilder()
@@ -87,6 +88,14 @@ export async function handleHelpCommand(interaction: ChatInputCommandInteraction
       '`/timer stop all:true` — Stop all timers in this channel',
       '`/timer list` — Show active timers',
       'Timers auto-stop after max duration (default 2h).',
+    ].join('\n'),
+  });
+
+  embed.addFields({
+    name: 'Legal & Privacy',
+    value: [
+      `By using this bot you agree to our [Terms of Service](${config.termsUrl}).`,
+      `For data and privacy details, use \`/privacy\` or read the [Privacy Policy](${config.privacyUrl}).`,
     ].join('\n'),
   });
 

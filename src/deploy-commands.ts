@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { rollCommandData, rCommandData, secretCommandData, sCommandData } from './commands/roll.js';
 import { helpCommandData } from './commands/help.js';
 import { timerCommandData } from './commands/timer.js';
+import { privacyCommandData } from './commands/privacy.js';
 
 dotenv.config();
 
@@ -22,6 +23,7 @@ const commands = [
   sCommandData.toJSON(),
   helpCommandData.toJSON(),
   timerCommandData.toJSON(),
+  privacyCommandData.toJSON(),
 ];
 
 const rest = new REST({ version: '10' }).setToken(token);

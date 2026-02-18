@@ -29,6 +29,7 @@ import { createCommandInteraction, createButtonInteraction } from './adapter.js'
 import { handleRollCommand, ROLL_COMMAND_NAMES } from '../commands/roll.js';
 import { handleHelpCommand } from '../commands/help.js';
 import { handleTimerCommand } from '../commands/timer.js';
+import { handlePrivacyCommand } from '../commands/privacy.js';
 import { handleButton } from '../interactions/buttons.js';
 import { handleTimerButton } from '../interactions/timer-buttons.js';
 import type { IRollStore, ITimerStore } from '../lib/store-interface.js';
@@ -241,6 +242,8 @@ async function handleCommand(
       await handleHelpCommand(interaction);
     } else if (commandName === 'timer') {
       await handleTimerCommand(interaction, timerStore, limiter);
+    } else if (commandName === 'privacy') {
+      await handlePrivacyCommand(interaction);
     }
   } catch (err) {
     logger.error('http-command-error', {

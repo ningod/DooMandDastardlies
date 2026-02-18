@@ -9,6 +9,7 @@ import { Client, GatewayIntentBits, Events, InteractionType, MessageFlags } from
 import { handleRollCommand, ROLL_COMMAND_NAMES } from '../commands/roll.js';
 import { handleHelpCommand } from '../commands/help.js';
 import { handleTimerCommand } from '../commands/timer.js';
+import { handlePrivacyCommand } from '../commands/privacy.js';
 import { handleButton } from '../interactions/buttons.js';
 import { handleTimerButton } from '../interactions/timer-buttons.js';
 import type { IRollStore, ITimerStore } from '../lib/store-interface.js';
@@ -117,6 +118,8 @@ export function startGateway(
             await handleHelpCommand(interaction);
           } else if (interaction.commandName === 'timer') {
             await handleTimerCommand(interaction, timerStore, limiter);
+          } else if (interaction.commandName === 'privacy') {
+            await handlePrivacyCommand(interaction);
           }
           return;
         }

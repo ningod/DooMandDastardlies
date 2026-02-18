@@ -35,6 +35,7 @@ This Discord bot brings the "roll behind the screen" mechanic to online play, ma
 - [Contributing](#contributing)
 - [Security](#security)
 - [Support](#support)
+- [Legal](#legal)
 - [License](#license)
 - [Author](#author)
 
@@ -382,6 +383,25 @@ Need help? Check out [SUPPORT.md](./SUPPORT.md) for resources:
 - Common issues and solutions
 - Where to get help
 
+## Legal
+
+By using this bot you agree to the [Terms of Service](./TERMS.md) and acknowledge the
+[Privacy Policy](./PRIVACY.md). Key points:
+
+- The bot is a random number generator provided **"as is"** — no warranty on results
+- The Developer is **not liable** for any losses if the bot is used for gambling or contests
+- Only minimal data (Discord User/Channel/Server IDs) is processed and **never stored permanently**
+  — all data has a 10-minute maximum TTL and is deleted immediately on reveal
+- Users must also comply with [Discord's Terms of Service](https://discord.com/terms) and [Community Guidelines](https://discord.com/guidelines)
+- The Developer may block users or servers for abuse
+
+Use `/privacy` in any Discord server where the bot is installed for a full in-bot data summary.
+
+| Document | Link |
+|---|---|
+| Terms of Service | [TERMS.md](./TERMS.md) · <https://github.com/ningod/DooMandDastardlies/blob/main/TERMS.md> |
+| Privacy Policy | [PRIVACY.md](./PRIVACY.md) · <https://github.com/ningod/DooMandDastardlies/blob/main/PRIVACY.md> |
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
@@ -626,6 +646,8 @@ No privileged intents (Message Content, Presence, Guild Members) are required.
 | [SUPPORT.md](./SUPPORT.md)                 | How to get help                                       |
 | [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) | Community standards and expectations                  |
 | [CHANGELOG.md](./CHANGELOG.md)             | Version history and release notes                     |
+| [TERMS.md](./TERMS.md)                     | Terms of Service for the bot                          |
+| [PRIVACY.md](./PRIVACY.md)                 | Privacy Policy — data collection, GDPR rights         |
 | [LICENSE](./LICENSE)                       | MIT License text                                      |
 
 ### For Developers and Maintainers
@@ -635,3 +657,5 @@ No privileged intents (Message Content, Presence, Guild Members) are required.
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Component diagram, data flows, storage model          |
 | [AGENTS.md](./AGENTS.md)             | Agentic development protocols for AI-assisted changes |
 | [CLAUDE.md](./CLAUDE.md)             | Project context and rules for Claude Code sessions    |
+| [DEPLOY_NOTES.md](./DEPLOY_NOTES.md) | Platform guide for legal env vars and portal setup    |
+| [DEPLOY_LEGAL.md](./DEPLOY_LEGAL.md) | Discord Developer Portal legal URL setup guide        |
