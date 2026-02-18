@@ -72,7 +72,7 @@ export async function handlePrivacyCommand(
   embed.addFields({
     name: 'Third-Party Services',
     value: [
-      '• **Discord Inc.** — all interactions pass through Discord\'s platform ([Discord Privacy Policy](https://discord.com/privacy))',
+      "• **Discord Inc.** — all interactions pass through Discord's platform ([Discord Privacy Policy](https://discord.com/privacy))",
       '• **Upstash Redis** — only used when the operator enables `STORAGE_BACKEND=redis`. If enabled, temporary roll data is stored on Upstash servers with the same 10-minute TTL.',
       '• No analytics, advertising, or tracking services are used.',
     ].join('\n'),

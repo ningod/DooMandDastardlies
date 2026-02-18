@@ -23,6 +23,10 @@ vi.mock('../src/commands/timer.js', () => ({
   buildRestartButton: vi.fn(),
 }));
 
+vi.mock('../src/commands/privacy.js', () => ({
+  handlePrivacyCommand: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('../src/interactions/buttons.js', () => ({
   handleButton: vi.fn().mockResolvedValue(undefined),
 }));
@@ -355,6 +359,23 @@ describe('HTTP server', () => {
       channel_id: 'ch-1',
       guild_id: 'g-1',
       token: 'tok-5',
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      type: 5,
+    });
+  });
+
+  // APPLICATION_COMMAND — /privacy
+  it('/privacy returns deferred type 5 without ephemeral', async () => {
+    const res = await signedPost(port, {
+      type: 2,
+      data: { name: 'privacy' },
+      member: { user: { id: 'u1', username: 'Test' } },
+      channel_id: 'ch-1',
+      guild_id: 'g-1',
+      token: 'tok-5b',
     });
 
     expect(res.status).toBe(200);
