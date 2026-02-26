@@ -123,6 +123,16 @@ With Redis enabled:
 - Timer metadata persists (but timers are not auto-resumed — they are session-scoped)
 - Atomic reveal operations prevent race conditions across multiple instances
 
+**Sharing a Redis instance across multiple applications:**
+
+All Redis keys are stored under a configurable namespace prefix (default: `doomanddastardlies`), so multiple different applications can safely share the same Redis database. To customize the prefix, set `UPSTASH_REDIS_KEY_PREFIX`:
+
+```bash
+fly secrets set UPSTASH_REDIS_KEY_PREFIX=doomanddastardlies
+```
+
+Only change this if you are running a second distinct deployment of the bot against the same Redis instance and need their data to remain isolated.
+
 ### HTTP Interactions Mode (Optional)
 
 By default the bot uses **gateway mode** (WebSocket). You can switch to **HTTP mode** where Discord sends interactions as HTTP POST requests. This enables stateless scaling behind a load balancer and Fly.io auto-stop/auto-start for cost savings.

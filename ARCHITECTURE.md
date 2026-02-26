@@ -288,15 +288,17 @@ Both implementations satisfy the same interfaces:
 
 ### Redis Key Schemes
 
-When `STORAGE_BACKEND=redis`:
+When `STORAGE_BACKEND=redis`, all keys are namespaced under a configurable prefix
+(env var `UPSTASH_REDIS_KEY_PREFIX`, default: `doomanddastardlies`). This allows
+multiple applications to safely share the same Redis instance without key collisions.
 
 | Key Pattern | Type | Purpose |
 |---|---|---|
-| `roll:{rollId}` | String (JSON) | Stored roll data, with Redis TTL (10 min) |
-| `timer:{timerId}` | String (JSON) | Timer metadata |
-| `timer:channel:{channelId}` | Set | Active timer IDs for a channel |
-| `timer:nextid` | Counter | Atomic ID generation via `INCR` |
-| `timer:stop:{timerId}` | String | Stop flag (SET NX, 60s TTL) for cross-instance stop |
+| `{prefix}:roll:{rollId}` | String (JSON) | Stored roll data, with Redis TTL (10 min) |
+| `{prefix}:timer:{timerId}` | String (JSON) | Timer metadata |
+| `{prefix}:timer:channel:{channelId}` | Set | Active timer IDs for a channel |
+| `{prefix}:timer:nextid` | Counter | Atomic ID generation via `INCR` |
+| `{prefix}:timer:stop:{timerId}` | String | Stop flag (SET NX, 60s TTL) for cross-instance stop |
 
 ### Atomic Operations
 

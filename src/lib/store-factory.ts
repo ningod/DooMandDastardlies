@@ -11,6 +11,10 @@ import { logger } from './logger.js';
  *
  * - `"memory"` (default): In-memory stores, no external dependencies.
  * - `"redis"`: Upstash Redis stores, requires UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.
+ *
+ * When using Redis, all keys are namespaced under UPSTASH_REDIS_KEY_PREFIX
+ * (default: "doomanddastardlies") so multiple applications can safely share
+ * the same Redis instance without key collisions.
  */
 export function createStores(): { rollStore: IRollStore; timerStore: ITimerStore } {
   const backend = (process.env.STORAGE_BACKEND ?? 'memory').toLowerCase();
@@ -26,12 +30,13 @@ export function createStores(): { rollStore: IRollStore; timerStore: ITimerStore
     }
 
     const redis = new Redis({ url, token });
+    const keyPrefix = process.env.UPSTASH_REDIS_KEY_PREFIX ?? 'doomanddastardlies';
 
-    logger.info('storage-backend', { backend: 'redis' });
+    logger.info('storage-backend', { backend: 'redis', keyPrefix });
 
     return {
-      rollStore: new RedisRollStore(redis),
-      timerStore: new RedisTimerStore(redis),
+      rollStore: new RedisRollStore(redis, 10 * 60 * 1000, keyPrefix),
+      timerStore: new RedisTimerStore(redis, undefined, keyPrefix),
     };
   }
 

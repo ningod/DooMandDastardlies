@@ -43,7 +43,8 @@ describe('RedisTimerStore', () => {
     mockRedis.del.mockResolvedValue(1);
     mockRedis.srem.mockResolvedValue(1);
     mockRedis.smembers.mockResolvedValue([]);
-    store = new RedisTimerStore(mockRedis as never, 2 * 60 * 60 * 1000);
+    // Use an explicit test prefix so key assertions are stable
+    store = new RedisTimerStore(mockRedis as never, 2 * 60 * 60 * 1000, 'test');
   });
 
   afterEach(() => {
@@ -70,23 +71,23 @@ describe('RedisTimerStore', () => {
       await expect(store.validate(makeConfig())).rejects.toThrow(/already has 5/);
     });
 
-    it('uses SCARD for channel capacity check', async () => {
+    it('uses SCARD with namespaced channel key for capacity check', async () => {
       await store.validate(makeConfig());
-      expect(mockRedis.scard).toHaveBeenCalledWith('timer:channel:channel-1');
+      expect(mockRedis.scard).toHaveBeenCalledWith('test:timer:channel:channel-1');
     });
   });
 
   describe('create()', () => {
-    it('calls INCR for ID, SET for metadata, SADD for channel set', async () => {
+    it('calls INCR for namespaced ID key, SET for metadata, SADD for channel set', async () => {
       mockRedis.incr.mockResolvedValue(7);
       const noop = vi.fn();
 
       const timer = await store.create(makeConfig(), noop, noop);
 
       expect(timer.id).toBe(7);
-      expect(mockRedis.incr).toHaveBeenCalledWith('timer:nextid');
-      expect(mockRedis.set).toHaveBeenCalledWith('timer:7', expect.any(String));
-      expect(mockRedis.sadd).toHaveBeenCalledWith('timer:channel:channel-1', 7);
+      expect(mockRedis.incr).toHaveBeenCalledWith('test:timer:nextid');
+      expect(mockRedis.set).toHaveBeenCalledWith('test:timer:7', expect.any(String));
+      expect(mockRedis.sadd).toHaveBeenCalledWith('test:timer:channel:channel-1', 7);
 
       await store.stopAll();
     });
@@ -106,7 +107,7 @@ describe('RedisTimerStore', () => {
   });
 
   describe('stop()', () => {
-    it('clears local interval and sets stop flag in Redis', async () => {
+    it('clears local interval and sets namespaced stop flag in Redis', async () => {
       mockRedis.incr.mockResolvedValue(1);
       const noop = vi.fn();
 
@@ -115,11 +116,11 @@ describe('RedisTimerStore', () => {
 
       expect(stopped).not.toBeNull();
       expect(stopped!.id).toBe(timer.id);
-      // Should set stop flag
-      expect(mockRedis.set).toHaveBeenCalledWith('timer:stop:1', '1', { px: 60_000 });
-      // Should cleanup
-      expect(mockRedis.del).toHaveBeenCalledWith('timer:1');
-      expect(mockRedis.srem).toHaveBeenCalledWith('timer:channel:channel-1', 1);
+      // Should set namespaced stop flag
+      expect(mockRedis.set).toHaveBeenCalledWith('test:timer:stop:1', '1', { px: 60_000 });
+      // Should cleanup namespaced keys
+      expect(mockRedis.del).toHaveBeenCalledWith('test:timer:1');
+      expect(mockRedis.srem).toHaveBeenCalledWith('test:timer:channel:channel-1', 1);
     });
 
     it('stops remote-only timer via stop flag when not local', async () => {
@@ -141,7 +142,7 @@ describe('RedisTimerStore', () => {
 
       expect(stopped).not.toBeNull();
       expect(stopped!.id).toBe(99);
-      expect(mockRedis.set).toHaveBeenCalledWith('timer:stop:99', '1', { px: 60_000 });
+      expect(mockRedis.set).toHaveBeenCalledWith('test:timer:stop:99', '1', { px: 60_000 });
     });
 
     it('returns null for non-existent timer', async () => {
@@ -152,14 +153,14 @@ describe('RedisTimerStore', () => {
   });
 
   describe('stopAllInChannel()', () => {
-    it('uses SMEMBERS and stops each timer', async () => {
+    it('uses namespaced SMEMBERS key and stops each timer', async () => {
       mockRedis.smembers.mockResolvedValue([1, 2]);
 
       const count = await store.stopAllInChannel('channel-1');
 
       expect(count).toBe(2);
-      expect(mockRedis.smembers).toHaveBeenCalledWith('timer:channel:channel-1');
-      expect(mockRedis.del).toHaveBeenCalledWith('timer:channel:channel-1');
+      expect(mockRedis.smembers).toHaveBeenCalledWith('test:timer:channel:channel-1');
+      expect(mockRedis.del).toHaveBeenCalledWith('test:timer:channel:channel-1');
     });
   });
 
@@ -206,7 +207,7 @@ describe('RedisTimerStore', () => {
   });
 
   describe('getByChannel()', () => {
-    it('uses SMEMBERS + individual GET for each timer', async () => {
+    it('uses namespaced SMEMBERS + individual GET for each timer', async () => {
       mockRedis.smembers.mockResolvedValue([1, 2]);
       mockRedis.get
         .mockResolvedValueOnce(
@@ -247,11 +248,30 @@ describe('RedisTimerStore', () => {
   });
 
   describe('channelCount()', () => {
-    it('uses SCARD', async () => {
+    it('uses namespaced SCARD key', async () => {
       mockRedis.scard.mockResolvedValue(3);
       const count = await store.channelCount('channel-1');
       expect(count).toBe(3);
-      expect(mockRedis.scard).toHaveBeenCalledWith('timer:channel:channel-1');
+      expect(mockRedis.scard).toHaveBeenCalledWith('test:timer:channel:channel-1');
+    });
+  });
+
+  describe('key prefix isolation', () => {
+    it('uses the default prefix "doomanddastardlies" when none is specified', async () => {
+      const defaultStore = new RedisTimerStore(mockRedis as never, 2 * 60 * 60 * 1000);
+      await defaultStore.validate(makeConfig());
+      expect(mockRedis.scard).toHaveBeenCalledWith('doomanddastardlies:timer:channel:channel-1');
+    });
+
+    it('uses a custom prefix to isolate keys from other applications', async () => {
+      const storeA = new RedisTimerStore(mockRedis as never, 2 * 60 * 60 * 1000, 'app-a');
+      const storeB = new RedisTimerStore(mockRedis as never, 2 * 60 * 60 * 1000, 'app-b');
+
+      await storeA.channelCount('channel-1');
+      await storeB.channelCount('channel-1');
+
+      expect(mockRedis.scard).toHaveBeenNthCalledWith(1, 'app-a:timer:channel:channel-1');
+      expect(mockRedis.scard).toHaveBeenNthCalledWith(2, 'app-b:timer:channel:channel-1');
     });
   });
 });

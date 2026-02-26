@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Community health files (CODE_OF_CONDUCT, CONTRIBUTING, SECURITY)
 - ESLint and Prettier configuration
 - Issue and pull request templates
+- Redis key namespace prefix (`UPSTASH_REDIS_KEY_PREFIX`, default: `doomanddastardlies`):
+  all Redis keys are now stored under `{prefix}:<type>:<id>`, allowing multiple
+  applications to safely share the same Upstash Redis instance without key collisions
 
 ## [1.0.0] - 2026-02-12
 

@@ -34,17 +34,18 @@ describe('RedisRollStore', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    store = new RedisRollStore(mockRedis as never);
+    // Use an explicit test prefix so key assertions are stable
+    store = new RedisRollStore(mockRedis as never, 600_000, 'test');
   });
 
   describe('set()', () => {
-    it('calls redis.set with correct key, JSON, and TTL', async () => {
+    it('calls redis.set with namespaced key, JSON, and TTL', async () => {
       const roll = makeRoll();
       await store.set(roll);
 
       expect(mockRedis.set).toHaveBeenCalledTimes(1);
       const [key, json, opts] = mockRedis.set.mock.calls[0];
-      expect(key).toBe('roll:test-roll-1');
+      expect(key).toBe('test:roll:test-roll-1');
       expect(opts).toEqual({ px: 600_000 });
 
       // Verify JSON contains the roll data with ISO date
@@ -63,7 +64,7 @@ describe('RedisRollStore', () => {
 
       const result = await store.get('test-roll-1');
 
-      expect(mockRedis.get).toHaveBeenCalledWith('roll:test-roll-1');
+      expect(mockRedis.get).toHaveBeenCalledWith('test:roll:test-roll-1');
       expect(result).not.toBeNull();
       expect(result!.rollId).toBe('test-roll-1');
       expect(result!.rolledAt).toBeInstanceOf(Date);
@@ -80,7 +81,7 @@ describe('RedisRollStore', () => {
   });
 
   describe('claim()', () => {
-    it('calls redis.eval with Lua script and returns parsed roll', async () => {
+    it('calls redis.eval with Lua script and namespaced key, returns parsed roll', async () => {
       const roll = makeRoll();
       const json = JSON.stringify({ ...roll, rolledAt: roll.rolledAt.toISOString() });
       mockRedis.eval.mockResolvedValue(json);
@@ -91,7 +92,7 @@ describe('RedisRollStore', () => {
       const [script, keys] = mockRedis.eval.mock.calls[0];
       expect(script).toContain("redis.call('GET'");
       expect(script).toContain("redis.call('DEL'");
-      expect(keys).toEqual(['roll:test-roll-1']);
+      expect(keys).toEqual(['test:roll:test-roll-1']);
 
       expect(result).not.toBeNull();
       expect(result!.rollId).toBe('test-roll-1');
@@ -112,7 +113,7 @@ describe('RedisRollStore', () => {
 
       const result = await store.delete('test-roll-1');
 
-      expect(mockRedis.del).toHaveBeenCalledWith('roll:test-roll-1');
+      expect(mockRedis.del).toHaveBeenCalledWith('test:roll:test-roll-1');
       expect(result).toBe(true);
     });
 
@@ -143,6 +144,29 @@ describe('RedisRollStore', () => {
       expect(() => {
         store.stop();
       }).not.toThrow();
+    });
+  });
+
+  describe('key prefix isolation', () => {
+    it('uses the default prefix "doomanddastardlies" when none is specified', async () => {
+      const defaultStore = new RedisRollStore(mockRedis as never);
+      await defaultStore.set(makeRoll());
+      const [key] = mockRedis.set.mock.calls[0];
+      expect(key).toBe('doomanddastardlies:roll:test-roll-1');
+    });
+
+    it('uses a custom prefix to isolate keys from other applications', async () => {
+      const appAStore = new RedisRollStore(mockRedis as never, 600_000, 'app-a');
+      const appBStore = new RedisRollStore(mockRedis as never, 600_000, 'app-b');
+
+      await appAStore.set(makeRoll({ rollId: 'roll-1' }));
+      await appBStore.set(makeRoll({ rollId: 'roll-1' }));
+
+      const [keyA] = mockRedis.set.mock.calls[0];
+      const [keyB] = mockRedis.set.mock.calls[1];
+      expect(keyA).toBe('app-a:roll:roll-1');
+      expect(keyB).toBe('app-b:roll:roll-1');
+      expect(keyA).not.toBe(keyB);
     });
   });
 });

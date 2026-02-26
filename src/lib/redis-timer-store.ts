@@ -24,11 +24,8 @@ const NAME_PATTERN = /^[\w\s-]+$/;
 /** Default maximum duration: 2 hours. */
 const DEFAULT_MAX_TIMER_HOURS = 2;
 
-/** Redis key prefixes. */
-const TIMER_KEY = 'timer:';
-const CHANNEL_KEY = 'timer:channel:';
-const NEXT_ID_KEY = 'timer:nextid';
-const STOP_FLAG_KEY = 'timer:stop:';
+/** Default Redis key namespace prefix. */
+const DEFAULT_KEY_PREFIX = 'doomanddastardlies';
 
 /** TTL for stop flags (60 seconds). */
 const STOP_FLAG_TTL_MS = 60_000;
@@ -54,15 +51,20 @@ interface TimerMetadata {
  * Redis stores metadata for validation, listing, and cross-instance visibility.
  * Stop flags prevent double-triggering across instances.
  *
+ * All keys are namespaced under `{keyPrefix}:timer:` to allow multiple
+ * applications to share the same Redis instance without key collisions.
+ *
  * On restart, timers are NOT auto-resumed (they require Discord channel references).
  */
 export class RedisTimerStore implements ITimerStore {
   private readonly redis: Redis;
   private readonly localTimers = new Map<number, TimerInstance>();
+  private readonly keyPrefix: string;
   readonly maxDurationMs: number;
 
-  constructor(redis: Redis, maxDurationMs?: number) {
+  constructor(redis: Redis, maxDurationMs?: number, keyPrefix: string = DEFAULT_KEY_PREFIX) {
     this.redis = redis;
+    this.keyPrefix = keyPrefix;
     if (maxDurationMs !== undefined) {
       this.maxDurationMs = maxDurationMs;
     } else {
@@ -73,6 +75,26 @@ export class RedisTimerStore implements ITimerStore {
           : DEFAULT_MAX_TIMER_HOURS;
       this.maxDurationMs = hours * 60 * 60 * 1000;
     }
+  }
+
+  /** Construct a namespaced Redis key for a timer's metadata. */
+  private timerKey(timerId: number): string {
+    return `${this.keyPrefix}:timer:${timerId}`;
+  }
+
+  /** Construct a namespaced Redis key for a channel's timer set. */
+  private channelKey(channelId: string): string {
+    return `${this.keyPrefix}:timer:channel:${channelId}`;
+  }
+
+  /** Namespaced Redis key for the auto-increment timer ID counter. */
+  private get nextIdKey(): string {
+    return `${this.keyPrefix}:timer:nextid`;
+  }
+
+  /** Construct a namespaced Redis key for a timer's stop flag. */
+  private stopFlagKey(timerId: number): string {
+    return `${this.keyPrefix}:timer:stop:${timerId}`;
   }
 
   /** Validate timer creation parameters. */
@@ -121,7 +143,7 @@ export class RedisTimerStore implements ITimerStore {
     await this.validate(config);
 
     // Get next ID atomically from Redis
-    const id = await this.redis.incr(NEXT_ID_KEY);
+    const id = await this.redis.incr(this.nextIdKey);
     const intervalMs = config.intervalMinutes * 60 * 1000;
     const maxDurationMs = this.maxDurationMs;
     const startedAt = Date.now();
@@ -153,14 +175,14 @@ export class RedisTimerStore implements ITimerStore {
       maxDurationMs,
       startedBy: config.startedBy,
     };
-    await this.redis.set(TIMER_KEY + id, JSON.stringify(metadata));
-    await this.redis.sadd(CHANNEL_KEY + config.channelId, id);
+    await this.redis.set(this.timerKey(id), JSON.stringify(metadata));
+    await this.redis.sadd(this.channelKey(config.channelId), id);
 
     // Local setInterval for triggering
     const handle = setInterval(() => {
       void (async () => {
         // Check stop flag
-        const stopped = await this.redis.exists(STOP_FLAG_KEY + id);
+        const stopped = await this.redis.exists(this.stopFlagKey(id));
         if (stopped || !this.localTimers.has(id)) {
           clearInterval(handle);
           return;
@@ -169,11 +191,11 @@ export class RedisTimerStore implements ITimerStore {
         timer.triggerCount++;
 
         // Update trigger count in Redis
-        const meta = await this.redis.get<string>(TIMER_KEY + id);
+        const meta = await this.redis.get<string>(this.timerKey(id));
         if (meta) {
           const parsed = JSON.parse(meta) as TimerMetadata;
           parsed.triggerCount = timer.triggerCount;
-          await this.redis.set(TIMER_KEY + id, JSON.stringify(parsed));
+          await this.redis.set(this.timerKey(id), JSON.stringify(parsed));
         }
 
         // Check if repeat count is exhausted
@@ -212,10 +234,10 @@ export class RedisTimerStore implements ITimerStore {
     const timer = this.localTimers.get(timerId);
     if (!timer) {
       // May exist in Redis but not locally (different instance) — try to stop via flag
-      const meta = await this.redis.get<string>(TIMER_KEY + timerId);
+      const meta = await this.redis.get<string>(this.timerKey(timerId));
       if (meta) {
         const parsed = JSON.parse(meta) as TimerMetadata;
-        await this.redis.set(STOP_FLAG_KEY + timerId, '1', { px: STOP_FLAG_TTL_MS });
+        await this.redis.set(this.stopFlagKey(timerId), '1', { px: STOP_FLAG_TTL_MS });
         await this.cleanupRedisKeys(timerId, parsed.channelId);
         return metadataToInstance(parsed);
       }
@@ -224,14 +246,14 @@ export class RedisTimerStore implements ITimerStore {
 
     clearInterval(timer.intervalHandle);
     this.localTimers.delete(timerId);
-    await this.redis.set(STOP_FLAG_KEY + timerId, '1', { px: STOP_FLAG_TTL_MS });
+    await this.redis.set(this.stopFlagKey(timerId), '1', { px: STOP_FLAG_TTL_MS });
     await this.cleanupRedisKeys(timerId, timer.channelId);
     return timer;
   }
 
   /** Stop all timers in a channel. */
   async stopAllInChannel(channelId: string): Promise<number> {
-    const members = await this.redis.smembers(CHANNEL_KEY + channelId);
+    const members = await this.redis.smembers(this.channelKey(channelId));
     let count = 0;
 
     for (const memberRaw of members) {
@@ -244,12 +266,12 @@ export class RedisTimerStore implements ITimerStore {
         this.localTimers.delete(id);
       }
 
-      await this.redis.set(STOP_FLAG_KEY + id, '1', { px: STOP_FLAG_TTL_MS });
-      await this.redis.del(TIMER_KEY + id);
+      await this.redis.set(this.stopFlagKey(id), '1', { px: STOP_FLAG_TTL_MS });
+      await this.redis.del(this.timerKey(id));
       count++;
     }
 
-    await this.redis.del(CHANNEL_KEY + channelId);
+    await this.redis.del(this.channelKey(channelId));
     return count;
   }
 
@@ -257,7 +279,7 @@ export class RedisTimerStore implements ITimerStore {
   async stopAll(): Promise<void> {
     for (const [id, timer] of this.localTimers) {
       clearInterval(timer.intervalHandle);
-      await this.redis.set(STOP_FLAG_KEY + id, '1', { px: STOP_FLAG_TTL_MS });
+      await this.redis.set(this.stopFlagKey(id), '1', { px: STOP_FLAG_TTL_MS });
       await this.cleanupRedisKeys(id, timer.channelId);
     }
     this.localTimers.clear();
@@ -268,7 +290,7 @@ export class RedisTimerStore implements ITimerStore {
     const local = this.localTimers.get(timerId);
     if (local) return local;
 
-    const meta = await this.redis.get<string>(TIMER_KEY + timerId);
+    const meta = await this.redis.get<string>(this.timerKey(timerId));
     if (!meta) return null;
     const parsed = JSON.parse(meta) as TimerMetadata;
     return metadataToInstance(parsed);
@@ -276,7 +298,7 @@ export class RedisTimerStore implements ITimerStore {
 
   /** Get all timers in a channel. */
   async getByChannel(channelId: string): Promise<TimerInstance[]> {
-    const members = await this.redis.smembers(CHANNEL_KEY + channelId);
+    const members = await this.redis.smembers(this.channelKey(channelId));
     const result: TimerInstance[] = [];
 
     for (const memberRaw of members) {
@@ -289,7 +311,7 @@ export class RedisTimerStore implements ITimerStore {
         continue;
       }
 
-      const meta = await this.redis.get<string>(TIMER_KEY + id);
+      const meta = await this.redis.get<string>(this.timerKey(id));
       if (meta) {
         const parsed = JSON.parse(meta) as TimerMetadata;
         result.push(metadataToInstance(parsed));
@@ -301,7 +323,7 @@ export class RedisTimerStore implements ITimerStore {
 
   /** Count of timers in a specific channel. */
   async channelCount(channelId: string): Promise<number> {
-    return await this.redis.scard(CHANNEL_KEY + channelId);
+    return await this.redis.scard(this.channelKey(channelId));
   }
 
   /** Total active timer count (local only). */
@@ -311,8 +333,8 @@ export class RedisTimerStore implements ITimerStore {
 
   /** Remove timer metadata and channel set membership from Redis. */
   private async cleanupRedisKeys(timerId: number, channelId: string): Promise<void> {
-    await this.redis.del(TIMER_KEY + timerId);
-    await this.redis.srem(CHANNEL_KEY + channelId, timerId);
+    await this.redis.del(this.timerKey(timerId));
+    await this.redis.srem(this.channelKey(channelId), timerId);
   }
 }
 
